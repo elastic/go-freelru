@@ -1,15 +1,15 @@
 # FreeLRU - A simple LRU cache library for Go (GC-less, generic)
 
 FreeLRU allows you to cache objects without introducing GC overhead.
-It uses a fast exact LRU algorithm that outperforms the widely used [golang-lru/simplelru](https://github.com/hashicorp/golang-lru/simplelru).
 It uses Go generics for simplicity, type-safety and performance over interface types.
-The API is simple to ease migrations from other LRU implementations.
+It uses a fast exact LRU algorithm.
+It performs better than other LRU implementations in the Go benchmarks provided.
+The API is simple in order to ease migrations from other LRU implementations.
 
-FreeLRU is *not* concurrency safe (for single-threaded use only) as it aims to replace [golang-lru/simplelru](https://github.com/hashicorp/golang-lru/simplelru).
+FreeLRU is for single-threaded use only.
+For thread-safety, the locking of operations needs to be controlled by the caller.
 
-## Performance
-
-The performance is gained by the combination of different techniques.
+The function to calculate hashes from the keys needs to be provided by the caller.
 
 ### Merging hashmap and ringbuffer
 
@@ -40,19 +40,21 @@ pointer types, no allocations will take place when adding such objects to the ca
 ### Overcommitting of hashtable memory
 
 Each hashtable implementation tries to avoid hash collisions because collisions are expensive.
-FreeLRU does this by allocating more elements than technically are needed (25% more by default).
+FreeLRU allows to to allocate more elements than the maximum number of elements stored.
 This value is configurable and can be increased to reduce the likelyness of collisions.
+The performance of the LRU operations will, in general, become faster by doing so.
+Setting the size of LRU to a value of 2^N is recognized to replace costly divisions by a bitwise AND.
 
 ## Benchmarks
 
 Below we compare FreeLRU with SimpleLRU, FreeCache and Go map.
-The comparison with FreeCache is just for reference - it is thread-safe and thus it has a mutex overhead.
-The comparison with Go map is also just for reference - Go maps don't implement LRU and thus should be much
-faster than FreeLRU. I am surprised by the benchmark results.
+The comparison with FreeCache is just for reference - it is thread-safe and thus it has a mutex/locking overhead.
+The comparison with Go map is also just for reference - Go maps don't implement LRU functionality and thus should
+be significantly faster than FreeLRU. It turns out, the opposite is the case.
 
-The numbers are from my laptop (Intel(R) Core(TM) i5-8265U CPU @ 1.60GHz).
+The numbers are from my laptop (Intel(R) Core(TM) i7-12800H @ 2800 MHz).
 
-The key and value types are part of the benchmark name, e.g. `int_int` means both, key and value, are of type `int`.
+The key and value types are part of the benchmark name, e.g. `int_int` means key and value are of type `int`.
 `int128` is a struct type made of two `uint64` fields.
 
 To run the benchamrks
@@ -62,79 +64,70 @@ go test -count 1 -bench . -run XXX
 
 ### Adding objects
 
-FreeLRU is ~2.5x faster than SimpleLRU, no surprise.
-But it is also ~27% and 34% faster than Go maps, which is a bit of a surprise.
+FreeLRU is ~3.5x faster than SimpleLRU, no surprise.
+But it is also significantly faster than Go maps, which is a bit of a surprise.
 
-This is with 25% memory overcommitment (default).
+This is with 0% memory overcommitment (default) and a capacity of 8192.
  ```
-BenchmarkFreeLRUAdd_int_int-8           10254669               114.6 ns/op             0 B/op          0 allocs/op
-BenchmarkFreeLRUAdd_int_int128-8        10335757               115.6 ns/op             0 B/op          0 allocs/op
-BenchmarkFreeLRUAdd_int_string-8        10235534               116.9 ns/op             0 B/op          0 allocs/op
-BenchmarkSimpleLRUAdd_int_int-8          4117924               291.1 ns/op            89 B/op          3 allocs/op
-BenchmarkSimpleLRUAdd_int_int128-8       3699376               319.2 ns/op           105 B/op          4 allocs/op
-BenchmarkSimpleLRUAdd_int_string-8       3667569               328.7 ns/op           105 B/op          4 allocs/op
-BenchmarkFreeCacheAdd_int_int-8          5694402               207.0 ns/op             2 B/op          0 allocs/op
-BenchmarkFreeCacheAdd_int_int128-8       5943618               206.4 ns/op             1 B/op          0 allocs/op
-BenchmarkFreeCacheAdd_int_string-8       4774111               244.2 ns/op            65 B/op          1 allocs/op
-BenchmarkMapAdd_int_int-8               12109748               145.6 ns/op             2 B/op          0 allocs/op
-BenchmarkMapAdd_int_int128-8            10714936               155.7 ns/op             1 B/op          0 allocs/op
+BenchmarkFreeLRUAdd_int_int-20                  43097347                27.41 ns/op            0 B/op          0 allocs/op
+BenchmarkFreeLRUAdd_int_int128-20               42129165                28.38 ns/op            0 B/op          0 allocs/op
+BenchmarkFreeLRUAdd_uint32_uint64-20            98322132                11.74 ns/op            0 B/op          0 allocs/op (*)
+BenchmarkFreeLRUAdd_string_uint64-20            39122446                31.12 ns/op            0 B/op          0 allocs/op
+BenchmarkFreeLRUAdd_int_string-20               81920673                14.00 ns/op            0 B/op          0 allocs/op (*)
+BenchmarkSimpleLRUAdd_int_int-20                12253708                93.85 ns/op           48 B/op          1 allocs/op
+BenchmarkSimpleLRUAdd_int_int128-20             12095150                94.26 ns/op           48 B/op          1 allocs/op
+BenchmarkSimpleLRUAdd_uint32_uint64-20          12367568                92.60 ns/op           48 B/op          1 allocs/op
+BenchmarkSimpleLRUAdd_string_uint64-20          10395525               119.0 ns/op            49 B/op          1 allocs/op
+BenchmarkSimpleLRUAdd_int_string-20             12373900                94.40 ns/op           48 B/op          1 allocs/op
+BenchmarkFreeCacheAdd_int_int-20                 9691870               122.9 ns/op             1 B/op          0 allocs/op
+BenchmarkFreeCacheAdd_int_int128-20              9240273               125.6 ns/op             1 B/op          0 allocs/op
+BenchmarkFreeCacheAdd_uint32_uint64-20           8140896               132.1 ns/op             1 B/op          0 allocs/op
+BenchmarkFreeCacheAdd_string_uint64-20           8248917               137.9 ns/op             1 B/op          0 allocs/op
+BenchmarkFreeCacheAdd_int_string-20              8079253               145.0 ns/op            64 B/op          1 allocs/op
+BenchmarkMapAdd_int_int-20                      35306983                46.29 ns/op            0 B/op          0 allocs/op
+BenchmarkMapAdd_int_int128-20                   30986126                45.16 ns/op            0 B/op          0 allocs/op
+BenchmarkMapAdd_string_uint64-20                28406497                49.35 ns/op            0 B/op          0 allocs/op
 ```
+(*)
+There is an interesting affect when using increasing number (0..N) as keys in combination with FNV1a().
+The number of collisions is strongly reduced here, thus the high performance.
+Exchanging the sequential numbers with random numbers results in roughly the same performance than the other results.
 
 Just to give you an idea for 100% memory overcommitment:
-Performance increased by ~70% !
-
+Performance increased by ~20%.
 ```
-BenchmarkFreeLRUAdd_int_int-8           17250180                66.62 ns/op            0 B/op          0 allocs/op
-BenchmarkFreeLRUAdd_int_int128-8        17454070                67.24 ns/op            0 B/op          0 allocs/op
+BenchmarkFreeLRUAdd_int_int-20                  53473030                21.52 ns/op            0 B/op          0 allocs/op
+BenchmarkFreeLRUAdd_int_int128-20               52852280                22.10 ns/op            0 B/op          0 allocs/op
+BenchmarkFreeLRUAdd_uint32_uint64-20            100000000               10.15 ns/op            0 B/op          0 allocs/op
+BenchmarkFreeLRUAdd_string_uint64-20            49477594                24.55 ns/op            0 B/op          0 allocs/op
+BenchmarkFreeLRUAdd_int_string-20               85288306                12.10 ns/op            0 B/op          0 allocs/op
 ```
 
 ### Getting objects
 
-FreeLRU Get() is ~27% faster than SimpleLRU, but ~2x slower than a straight Go map lookup.
-
-This is with 25% memory overcommitment (default).
+This is with 0% memory overcommitment (default) and a capacity of 8192.
 ```
-BenchmarkFreeLRUGet-8                   51072902                23.34 ns/op            0 B/op          0 allocs/op
-BenchmarkSimpleLRUGet-8                 38223922                29.60 ns/op            0 B/op          0 allocs/op
-BenchmarkFreeCacheGet-8                 30924639                33.38 ns/op            0 B/op          0 allocs/op
-BenchmarkMapGet-8                       89974257                12.28 ns/op            0 B/op          0 allocs/op
+BenchmarkFreeLRUGet-20                          83158561                13.80 ns/op            0 B/op          0 allocs/op
+BenchmarkSimpleLRUGet-20                        146248706                8.199 ns/op           0 B/op          0 allocs/op
+BenchmarkFreeCacheGet-20                        58229779                19.56 ns/op            0 B/op          0 allocs/op
+BenchmarkMapGet-20                              195464706                6.031 ns/op           0 B/op          0 allocs/op
 ```
-
-With 100% memory overcommitment, the performance is getting better.
-Here, FreeLRU is 70% faster than SimpleLRU and just 37% slower than Go maps.
-```
-BenchmarkFreeLRUGet-8                   70516069                17.06 ns/op            0 B/op          0 allocs/op
-```
-
-### Can we do better ?
-
-Surely yes.
-A specialized code without generics, e.g. a `uint32_uint64` code with 100% memory
-overcommitment is slightly faster
-```
-BenchmarkFreeLRUAdd_uint32_uint64-8     24647635                46.85 ns/op            0 B/op          0 allocs/op
-```
-
-FreeLRU with the same types (you find the benchmark code in the `lru_test.go`), 100% overcommitment:
-```
-BenchmarkFreeLRUAdd_uint32_uint64-8     22154940                53.32 ns/op            0 B/op          0 allocs/op
-```
-
-Another improvement could be a faster hash algorithm to create the hash from the key.
-Also, implementing a different hashtable algorithm that is better on collisions could give a boost.
 
 ## Example usage
 ```
     lru, _ := New[int, uint64](8192, nil, hashInt)
-    k := 123
-    v := uint64(999)
-    lru.Add(k, v)
-    v, ok = lru.Get(k)
+    key := 123
+    val := uint64(999)
+    lru.Add(key, val)
+
+    if v, ok := lru.Get(key); ok {
+        fmt.Printf("found %v=%v\n", key, v)
+    }
 
 ```
-The function `hashInt(int) uint32` will be called to hash the key (of type `int` here).
-The FNV1a hash algorithm does a good job (fast and 'random').
-Please take a look into `lru_test.go` to find an example FNV1a implementation.
+The function `hashInt(int) uint32` will be called to calculate a hash value of the key.
+Please take a look into `bench/` directory to find examples of hash functions.
+Here you will also find an amd64 version of the Go internal hash function, which uses AESENC features
+of the CPU.
 
-In case you already have a hash that you want to use as key, you need to provide an "identity" function.
-Have a look at `BenchmarkFreeLRUAdd_uint32_uint64()` as an example.
+In case you already have a hash that you want to use as the key, you have to provide an "identity" function.
