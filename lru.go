@@ -19,6 +19,9 @@ package go_freelru
 
 import (
 	"errors"
+	"fmt"
+	"math"
+	"math/bits"
 )
 
 // OnEvictCallback is the function type for Config.OnEvict.
@@ -29,27 +32,27 @@ type HashKeyCallback[K comparable] func(K) uint32
 
 // Config is the type for the LRU configuration passed to New().
 type Config[K comparable, V any] struct {
-	// Capacity is the maximal capacity of the LRU cache before eviction takes place.
+	// Capacity is the maximal number of elements of the LRU cache before eviction takes place.
 	Capacity uint32
+
+	// Size is the size of the LRU in elements.
+	// It must be >= Capacity.
+	// The more it exceeds Capacity, the less likely are costly collisions when inserting elements.
+	Size uint32
 
 	// OnEvict is called for every eviction.
 	OnEvict OnEvictCallback[K, V]
 
 	// HashKey is called for whenever the hash of a key is needed.
 	HashKey HashKeyCallback[K]
-
-	// MemoryFactor is an over-provisioned factor for the hashtable size to reduce
-	// the probability of collisions, as these are relatve expensive in terms of CPU usage.
-	// The default is 1.25 (25% over-committed).
-	MemoryFactor float64
 }
 
 // DefaultConfig returns a default configuration for New().
 func DefaultConfig[K comparable, V any]() Config[K, V] {
 	return Config[K, V]{
-		Capacity:     128,
-		OnEvict:      nil,
-		MemoryFactor: 1.25,
+		Capacity: 64,
+		Size:     64,
+		OnEvict:  nil,
 	}
 }
 
@@ -57,26 +60,43 @@ type element[K comparable, V any] struct {
 	key   K
 	value V
 
-	// next and prev are indexes in the doubly-linked list of elements.
+	// bucketNext and bucketPrev are indexes in the space-dimension doubly-linked list of elements.
+	// That is to add/remove items to the collision bucket without re-allocations and with O(1)
+	// complexity.
+	// To simplify the implementation, internally a list l is implemented
+	// as a ring, such that &l.latest.prev is last element and
+	// &l.last.next is the latest element.
+	nextBucket, prevBucket uint32
+
+	// bucketPos is the bucket that an element belongs to.
+	bucketPos uint32
+
+	// next and prev are indexes in the time-dimension doubly-linked list of elements.
 	// To simplify the implementation, internally a list l is implemented
 	// as a ring, such that &l.latest.prev is last element and
 	// &l.last.next is the latest element.
 	next, prev uint32
-
-	// Marks the element as free
-	free bool
 }
+
+const emptyBucket = math.MaxUint32
 
 // LRU implements a non-thread safe fixed size LRU cache.
 type LRU[K comparable, V any] struct {
+	buckets  []uint32 // contains positions of bucket lists or 'emptyBucket'
 	elements []element[K, V]
 	onEvict  OnEvictCallback[K, V]
 	hash     HashKeyCallback[K]
 
-	head uint32 // index of latest element in cache
-	len  uint32 // number of elements in the cache
-	cap  uint32 // capacity of cache
-	size uint32 // size of the element array (25% larger than cap)
+	head uint32 // index of the newest element in the cache
+	len  uint32 // current number of elements in the cache
+	cap  uint32 // max number of elements in the cache
+	size uint32 // size of the element array (X% larger than cap)
+	mask uint32 // bitmask to avoid the costly idiv in keyToPos() if size is a 2^n value
+
+	collisions uint64
+	inserts    uint64
+	evictions  uint64
+	removals   uint64
 }
 
 // New constructs an LRU with the given capacity of elements.
@@ -85,6 +105,7 @@ func New[K comparable, V any](cap uint32, onEvict OnEvictCallback[K, V],
 	hash HashKeyCallback[K]) (*LRU[K, V], error) {
 	cfg := DefaultConfig[K, V]()
 	cfg.Capacity = cap
+	cfg.Size = cap
 	cfg.OnEvict = onEvict
 	cfg.HashKey = hash
 	return NewWithConfig(cfg)
@@ -95,35 +116,53 @@ func NewWithConfig[K comparable, V any](cfg Config[K, V]) (*LRU[K, V], error) {
 	if cfg.Capacity == 0 {
 		return nil, errors.New("Capacity must be positive")
 	}
-	if cfg.MemoryFactor < 1.0 {
-		return nil, errors.New("MemoryFactor must be >= 1.0")
+	if cfg.Size == emptyBucket {
+		return nil, fmt.Errorf("size must not be %#X", cfg.Capacity)
+	}
+	if cfg.Size < cfg.Capacity {
+		return nil, fmt.Errorf("size (%d) is smaller than capacity (%d)", cfg.Size, cfg.Capacity)
 	}
 	if cfg.HashKey == nil {
 		return nil, errors.New("HashKey must be set")
 	}
 
-	// The hashtable size is over-provisioned by 25% to reduce collisions
+	// The hashtable size is over-provisioned by X% to reduce collisions
 	// as collisions are relatively expensive.
-	size := uint32(float64(cfg.Capacity)*cfg.MemoryFactor) + 1
+	mask := uint32(0)
+	if bits.OnesCount32(cfg.Size) == 1 {
+		mask = cfg.Size - 1
+	}
 	lru := &LRU[K, V]{
 		cap:      cfg.Capacity,
-		size:     size,
-		elements: make([]element[K, V], size),
+		size:     cfg.Size,
+		buckets:  make([]uint32, cfg.Size),
+		elements: make([]element[K, V], cfg.Size),
 		onEvict:  cfg.OnEvict,
 		hash:     cfg.HashKey,
+		mask:     mask,
 	}
 
 	// Mark all slots as free.
 	for i := range lru.elements {
-		lru.elements[i].free = true
+		lru.buckets[i] = emptyBucket
 	}
 
 	return lru, nil
 }
 
 // keyToPos converts a key into a position in the elements array.
-func (lru *LRU[K, V]) keyToPos(key K) uint32 {
+func (lru *LRU[K, V]) keyToBucketPos(key K) uint32 {
+	if lru.mask != 0 {
+		return lru.hash(key) & lru.mask
+	}
 	return lru.hash(key) % lru.size
+}
+
+// keyToPos converts a key into a position in the elements array.
+func (lru *LRU[K, V]) keyToPos(key K) (bucketPos, elemPos uint32) {
+	bucketPos = lru.keyToBucketPos(key)
+	elemPos = lru.buckets[bucketPos]
+	return
 }
 
 // nextPos avoids the costly modulo operation.
@@ -147,10 +186,24 @@ func (lru *LRU[K, V]) setHead(pos uint32) {
 	lru.head = pos
 }
 
-// unlink removes the element from the list.
-func (lru *LRU[K, V]) unlink(pos uint32) {
+// unlinkElement removes the element from the elements list.
+func (lru *LRU[K, V]) unlinkElement(pos uint32) {
 	lru.elements[lru.elements[pos].prev].next = lru.elements[pos].next
 	lru.elements[lru.elements[pos].next].prev = lru.elements[pos].prev
+}
+
+// unlinkBucket removes the element from the buckets list.
+func (lru *LRU[K, V]) unlinkBucket(pos uint32) {
+	prevBucket := lru.elements[pos].prevBucket
+	nextBucket := lru.elements[pos].nextBucket
+	if prevBucket == nextBucket && prevBucket == pos {
+		// The element references itself, so it's the only bucket entry
+		lru.buckets[lru.elements[pos].bucketPos] = emptyBucket
+		return
+	}
+	lru.elements[prevBucket].nextBucket = nextBucket
+	lru.elements[nextBucket].prevBucket = prevBucket
+	lru.buckets[lru.elements[pos].bucketPos] = nextBucket
 }
 
 // evict evicts the element at the given position.
@@ -159,17 +212,44 @@ func (lru *LRU[K, V]) evict(pos uint32) {
 		lru.head = lru.elements[pos].prev
 	}
 
-	lru.unlink(pos)
+	lru.unlinkElement(pos)
+	lru.unlinkBucket(pos)
 	lru.len--
-
-	lru.elements[pos].free = true
+	lru.evictions++
 
 	if lru.onEvict != nil {
-		// The following code avoids conflicts in case the onEvict callback
-		// inserts the key and value into the cache.
+		// Save k/v for the eviction function.
 		key := lru.elements[pos].key
 		value := lru.elements[pos].value
 		lru.onEvict(key, value)
+	}
+}
+
+// Move element from position old to new.
+// That avoids 'gaps' and new elements can always be simply appended.
+func (lru *LRU[K, V]) move(new, old uint32) {
+	// fmt.Printf("move %d -> %d (head %d)\n", old, new, lru.head)
+	if new == old {
+		return
+	}
+	if old == lru.head {
+		lru.head = new
+	}
+
+	prev := lru.elements[old].prev
+	next := lru.elements[old].next
+	lru.elements[prev].next = new
+	lru.elements[next].prev = new
+
+	prev = lru.elements[old].prevBucket
+	next = lru.elements[old].nextBucket
+	lru.elements[prev].nextBucket = new
+	lru.elements[next].prevBucket = new
+
+	lru.elements[new] = lru.elements[old]
+
+	if lru.buckets[lru.elements[new].bucketPos] == old {
+		lru.buckets[lru.elements[new].bucketPos] = new
 	}
 }
 
@@ -178,7 +258,6 @@ func (lru *LRU[K, V]) evict(pos uint32) {
 func (lru *LRU[K, V]) insert(pos uint32, key K, value V) {
 	lru.elements[pos].key = key
 	lru.elements[pos].value = value
-	lru.elements[pos].free = false
 
 	if lru.len == 0 {
 		lru.elements[pos].prev = pos
@@ -188,38 +267,7 @@ func (lru *LRU[K, V]) insert(pos uint32, key K, value V) {
 		lru.setHead(pos)
 	}
 	lru.len++
-}
-
-// shiftKeys rearranges the elements back into a defined layout
-// after the entry at currentPosition has been removed.
-func (lru *LRU[K, V]) shiftKeys(currentPosition uint32) {
-	for {
-		freeSlot := currentPosition
-		currentPosition = lru.nextPos(currentPosition)
-		for {
-			if lru.elements[currentPosition].free {
-				lru.elements[freeSlot].free = true
-				return
-			}
-			currentKeySlot := lru.keyToPos(lru.elements[currentPosition].key)
-			if freeSlot <= currentPosition {
-				if freeSlot >= currentKeySlot || currentKeySlot > currentPosition {
-					break
-				}
-			} else {
-				if freeSlot >= currentKeySlot && currentKeySlot > currentPosition {
-					break
-				}
-			}
-			currentPosition = lru.nextPos(currentPosition)
-		}
-		lru.elements[freeSlot] = lru.elements[currentPosition]
-		lru.elements[lru.elements[currentPosition].prev].next = freeSlot
-		lru.elements[lru.elements[currentPosition].next].prev = freeSlot
-		if currentPosition == lru.head {
-			lru.head = freeSlot
-		}
-	}
+	lru.inserts++
 }
 
 // Len returns the number of elements stored in the cache.
@@ -230,62 +278,104 @@ func (lru *LRU[K, V]) Len() int {
 // Add adds a key:value to the cache.
 // Returns true, true if key was updated and eviction occurred.
 func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
-	startPosition := lru.keyToPos(key)
-	for pos := startPosition; ; pos = lru.nextPos(pos) {
-		if lru.elements[pos].free {
-			// lru.len should never exceed lru.cap
-			if lru.len == lru.cap {
-				// evict oldest entry
-				tailPos := lru.elements[lru.head].next
-				lru.evict(tailPos)
-				lru.shiftKeys(tailPos)
-				evicted = true
-				// After evict and shiftKeys have taken place, the structure
-				// of the LRU has changed and if we insert at this point we
-				// could be breaking the invariant: There's no guarantee that
-				// positions that this search previously skipped because they
-				// were invalid continue to hold the same keys.
-				// break triggers a new search starting from startPosition.
-				break
-			}
+	bucketPos, startPos := lru.keyToPos(key)
+	// fmt.Printf("bucketPos %d startPos %d\n", bucketPos, startPos)
+	if startPos == emptyBucket {
+		pos := lru.len
 
-			lru.insert(pos, key, value)
-			return
+		if pos == lru.cap {
+			// Capacity reached, evict the oldest entry and
+			// store the new entry at evicted position.
+			pos = lru.elements[lru.head].next
+			// fmt.Printf("evict %d\n", pos)
+			lru.evict(pos)
+			evicted = true
 		}
 
-		if key == lru.elements[pos].key {
+		// insert new (first) entry into the bucket
+		// fmt.Printf("insert at %d\n", pos)
+		lru.buckets[bucketPos] = pos
+		lru.elements[pos].bucketPos = bucketPos
+
+		lru.elements[pos].nextBucket = pos
+		lru.elements[pos].prevBucket = pos
+		lru.insert(pos, key, value)
+		return
+	}
+
+	// Walk through the bucket list to whether key already exists.
+	// fmt.Printf("walk\n")
+	pos := startPos
+	for {
+		if lru.elements[pos].key == key {
+			// fmt.Printf("replace\n")
 			// Key exists, replace the value and update element to be the head element.
 			lru.elements[pos].value = value
 
 			if pos != lru.head {
-				lru.unlink(pos)
+				lru.unlinkElement(pos)
 				lru.setHead(pos)
 			}
-
+			// count as insert, even if it's just an update
+			lru.inserts++
 			return false
 		}
-	}
 
-	for pos := startPosition; ; pos = lru.nextPos(pos) {
-		if !lru.elements[pos].free {
-			continue
+		pos = lru.elements[pos].nextBucket
+		if pos == startPos {
+			// Key not found
+			break
 		}
-
-		lru.insert(pos, key, value)
-		return
 	}
+
+	// fmt.Printf("collision\n")
+	// At this point we know that key is a new entry, and we
+	// also have a collision.
+	lru.collisions++
+
+	pos = lru.len
+	if pos == lru.cap {
+		// Capacity reached, evict the oldest entry and
+		// store the new entry at evicted position.
+		pos = lru.elements[lru.head].next
+		// fmt.Printf("evict %d\n", pos)
+		lru.evict(pos)
+		evicted = true
+	}
+
+	// insert new entry into the existing bucket before startPos
+	// fmt.Printf("insert at %d (startPos %d bucketPos %d)\n", pos, startPos, bucketPos)
+	lru.buckets[bucketPos] = pos
+	lru.elements[pos].bucketPos = bucketPos
+
+	lru.elements[pos].nextBucket = startPos
+	lru.elements[pos].prevBucket = lru.elements[startPos].prevBucket
+	lru.elements[lru.elements[startPos].prevBucket].nextBucket = pos
+	lru.elements[startPos].prevBucket = pos
+	lru.insert(pos, key, value)
+	return
 }
 
 // Get looks up a key's value from the cache, setting it as the most
 // recently used item.
 func (lru *LRU[K, V]) Get(key K) (value V, ok bool) {
-	for pos := lru.keyToPos(key); !lru.elements[pos].free; pos = lru.nextPos(pos) {
-		if key == lru.elements[pos].key {
-			if pos != lru.head {
-				lru.unlink(pos)
-				lru.setHead(pos)
+	_, startPos := lru.keyToPos(key)
+	if startPos != emptyBucket {
+		pos := startPos
+		for {
+			if key == lru.elements[pos].key {
+				if pos != lru.head {
+					lru.unlinkElement(pos)
+					lru.setHead(pos)
+				}
+				return lru.elements[pos].value, true
 			}
-			return lru.elements[pos].value, true
+
+			pos = lru.elements[pos].nextBucket
+			if pos == startPos {
+				// Key not found
+				break
+			}
 		}
 	}
 
@@ -296,9 +386,19 @@ func (lru *LRU[K, V]) Get(key K) (value V, ok bool) {
 
 // Peek looks up a key's value from the cache, without changing its recent-ness.
 func (lru *LRU[K, V]) Peek(key K) (value V, ok bool) {
-	for pos := lru.keyToPos(key); !lru.elements[pos].free; pos = lru.nextPos(pos) {
-		if key == lru.elements[pos].key {
-			return lru.elements[pos].value, true
+	_, startPos := lru.keyToPos(key)
+	if startPos != emptyBucket {
+		pos := startPos
+		for {
+			if key == lru.elements[pos].key {
+				return lru.elements[pos].value, true
+			}
+
+			pos = lru.elements[pos].nextBucket
+			if pos == startPos {
+				// Key not found
+				break
+			}
 		}
 	}
 
@@ -316,12 +416,31 @@ func (lru *LRU[K, V]) Contains(key K) (ok bool) {
 // Remove removes the key from the cache.
 // The return value indicates whether the key existed or not.
 func (lru *LRU[K, V]) Remove(key K) (removed bool) {
-	for pos := lru.keyToPos(key); !lru.elements[pos].free; pos = lru.nextPos(pos) {
+	_, startPos := lru.keyToPos(key)
+	if startPos == emptyBucket {
+		return false
+	}
+
+	pos := startPos
+	for {
 		if key == lru.elements[pos].key {
 			// Key exists, update element to be the head element.
 			lru.evict(pos)
-			lru.shiftKeys(pos)
+			lru.move(pos, lru.len)
+			lru.removals++
+
+			// remove stale data to avoid memory leaks
+			var k0 K
+			var v0 V
+			lru.elements[lru.len].key = k0
+			lru.elements[lru.len].value = v0
 			return true
+		}
+
+		pos = lru.elements[pos].nextBucket
+		if pos == startPos {
+			// Key not found
+			break
 		}
 	}
 
@@ -337,4 +456,34 @@ func (lru *LRU[K, V]) Keys() []K {
 		pos = lru.elements[pos].next
 	}
 	return keys
+}
+
+// just used for debugging
+func (lru *LRU[K, V]) dump() {
+	fmt.Printf("head %d len %d cap %d size %d mask 0x%X\n",
+		lru.head, lru.len, lru.cap, lru.size, lru.mask)
+
+	for i := range lru.buckets {
+		if lru.buckets[i] == emptyBucket {
+			continue
+		}
+		fmt.Printf("  bucket[%d] -> %d\n", i, lru.buckets[i])
+		pos := lru.buckets[i]
+		for {
+			e := &lru.elements[pos]
+			fmt.Printf("    pos %d bucketPos %d prevBucket %d nextBucket %d prev %d next %d k %v v %v\n",
+				pos, e.bucketPos, e.prevBucket, e.nextBucket, e.prev, e.next, e.key, e.value)
+			pos = e.nextBucket
+			if pos == lru.buckets[i] {
+				break
+			}
+		}
+	}
+}
+
+func (lru *LRU[K, V]) PrintStats() {
+	fmt.Printf("Inserts: %d Collisions: %d (%.2f%%) Evictions: %d Removals: %d\n",
+		lru.inserts, lru.collisions,
+		float64(lru.collisions)/float64(lru.inserts),
+		lru.evictions, lru.removals)
 }

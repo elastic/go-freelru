@@ -48,16 +48,12 @@ func hashUint64(i uint64) uint32 {
 
 func makeLRU(t *testing.T, cap uint32, evictCounter *int) *LRU[uint64, uint64] {
 	onEvicted := func(k uint64, v uint64) {
-		if k+1 != v {
-			t.Fatalf("Evict value not matching (%v+1 != %v)", k, v)
-		}
+		FatalIf(t, k+1 != v, "Evict value not matching (%v+1 != %v)", k, v)
 		*evictCounter++
 	}
 
 	lru, err := New(cap, onEvicted, hashUint64)
-	if err != nil {
-		t.Fatalf("Failed to create LRU: %v", err)
-	}
+	FatalIf(t, err != nil, "Failed to create LRU: %v", err)
 
 	return lru
 }
@@ -71,12 +67,8 @@ func TestLRU(t *testing.T) {
 	for i := uint64(0); i < CAP*2; i++ {
 		lru.Add(i, i+1)
 	}
-	if lru.Len() != CAP {
-		t.Fatalf("Unexpected number of entries: %v (!= %d)", lru.Len(), CAP)
-	}
-	if evictCounter != CAP {
-		t.Fatalf("Unexpected number of evictions: %v (!= %d)", evictCounter, CAP)
-	}
+	FatalIf(t, lru.Len() != CAP, "Unexpected number of entries: %v (!= %d)", lru.Len(), CAP)
+	FatalIf(t, evictCounter != CAP, "Unexpected number of evictions: %v (!= %d)", evictCounter, CAP)
 
 	keys := lru.Keys()
 	for i, k := range keys {
@@ -97,51 +89,36 @@ func TestLRU(t *testing.T) {
 		}
 	}
 
-	if lru.Remove(CAP * 2) {
-		t.Fatalf("Unexpected success removing %d", CAP*2)
-	}
-	if !lru.Remove(CAP*2 - 1) {
-		t.Fatalf("Failed to remove most recent entry %d", CAP*2-1)
-	}
-	if !lru.Remove(CAP) {
-		t.Fatalf("Failed to remove oldest entry %d", CAP)
-	}
-	if evictCounter != CAP+2 {
-		t.Fatalf("Unexpected number of evictions: %v (!= %d)", evictCounter, CAP+2)
-	}
-	if lru.Len() != CAP-2 {
-		t.Fatalf("Unexpected number of entries: %v (!= %d)", lru.Len(), CAP-2)
-	}
+	FatalIf(t, lru.Remove(CAP*2), "Unexpected success removing %d", CAP*2)
+	FatalIf(t, !lru.Remove(CAP*2-1), "Failed to remove most recent entry %d", CAP*2-1)
+	FatalIf(t, !lru.Remove(CAP), "Failed to remove oldest entry %d", CAP)
+	FatalIf(t, evictCounter != CAP+2, "Unexpected # of evictions: %d (!= %d)", evictCounter, CAP+2)
+	FatalIf(t, lru.Len() != CAP-2, "Unexpected # of entries: %d (!= %d)", lru.Len(), CAP-2)
 }
 
 func TestLRU_Add(t *testing.T) {
 	evictCounter := 0
 	lru := makeLRU(t, 1, &evictCounter)
 
-	if lru.Add(1, 2) == true || evictCounter != 0 {
-		t.Errorf("Unexpected eviction")
-	}
-	if lru.Add(3, 4) == false || evictCounter != 1 {
-		t.Errorf("Missing eviction")
-	}
+	FatalIf(t, lru.Add(1, 2) == true || evictCounter != 0, "Unexpected eviction")
+	FatalIf(t, lru.Add(3, 4) == false || evictCounter != 1, "Missing eviction")
 }
 
 func TestLRU_Remove(t *testing.T) {
 	evictCounter := 0
 	lru := makeLRU(t, 2, &evictCounter)
-
 	lru.Add(1, 2)
 	lru.Add(3, 4)
-	if !lru.Remove(1) {
-		t.Fatalf("Failed to remove most recent entry %d", 1)
-	}
-	if !lru.Remove(3) {
-		t.Fatalf("Failed to remove oldest entry %d", 3)
-	}
-	if evictCounter != 2 {
-		t.Fatalf("Unexpected number of evictions: %v (!= %d)", evictCounter, 2)
-	}
-	if lru.Len() != 0 {
-		t.Fatalf("Unexpected number of entries: %v (!= %d)", lru.Len(), 0)
+
+	FatalIf(t, !lru.Remove(1), "Failed to remove most recent entry %d", 1)
+	FatalIf(t, !lru.Remove(3), "Failed to remove most recent entry %d", 3)
+	FatalIf(t, evictCounter != 2, "Unexpected # of evictions: %d (!= %d)", evictCounter, 2)
+	FatalIf(t, lru.Len() != 0, "Unexpected # of entries: %d (!= %d)", lru.Len(), 0)
+}
+
+func FatalIf(t *testing.T, fail bool, fmt string, args ...any) {
+	if fail {
+		t.Logf(fmt, args...)
+		panic(fail)
 	}
 }
