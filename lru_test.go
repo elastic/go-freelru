@@ -173,3 +173,32 @@ func FatalIf(t *testing.T, fail bool, fmt string, args ...any) {
 		panic(fail)
 	}
 }
+
+// This following tests are for memory comparison.
+// See also TestSimpleLRUAdd in the bench/ directory.
+
+const count = 1000
+
+// GOGC=off go test -memprofile=mem.out -test.memprofilerate=1 -count 1 -run MapAdd
+// go tool pprof mem.out
+// (then check the top10)
+func TestMapAdd(t *testing.T) {
+	cache := make(map[uint64]int, count) // b.N to avoid reallocations
+
+	var val int
+	for i := uint64(0); i < count; i++ {
+		cache[i] = val
+	}
+}
+
+// GOGC=off go test -memprofile=mem.out -test.memprofilerate=1 -count 1 -run FreeLRUAdd
+// go tool pprof mem.out
+// (then check the top10)
+func TestFreeLRUAdd(t *testing.T) {
+	cache, _ := New[uint64, int](count, nil, hashUint64)
+
+	var val int
+	for i := uint64(0); i < count; i++ {
+		cache.Add(i, val)
+	}
+}

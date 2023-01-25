@@ -363,6 +363,20 @@ func BenchmarkMapAdd_string_uint64(b *testing.B) {
 	}
 }
 
+// This test is for memory comparison with FreeLRU and Go map.
+//
+// GOGC=off go test -memprofile=mem.out -test.memprofilerate=1 -count 1 -run SimpleLRUAdd
+// go tool pprof mem.out
+// (then check the top10)
+func TestSimpleLRUAdd(t *testing.T) {
+	cache, _ := simplelru.NewLRU[uint64, int](8192, nil)
+
+	var val int
+	for i := uint64(0); i < 1000; i++ {
+		cache.Add(i, val)
+	}
+}
+
 func makeStrings(n int) []string {
 	s := make([]string, 0, n)
 	for i := 0; i < n; i++ {
