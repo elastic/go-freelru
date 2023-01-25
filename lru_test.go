@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 	"math/rand"
 	"testing"
+	"time"
 )
 
 const (
@@ -47,16 +48,29 @@ func hashUint64(i uint64) uint32 {
 	return h
 }
 
-func makeLRU(t *testing.T, cap uint32, evictCounter *int) *LRU[uint64, uint64] {
+func makeLRUWithLifetime(t *testing.T, cap uint32, evictCounter *int,
+	lifetime time.Duration) *LRU[uint64, uint64] {
 	onEvicted := func(k uint64, v uint64) {
 		FatalIf(t, k+1 != v, "Evict value not matching (%v+1 != %v)", k, v)
-		*evictCounter++
+		if evictCounter != nil {
+			*evictCounter++
+		}
 	}
 
-	lru, err := New(cap, onEvicted, hashUint64)
+	cfg := DefaultConfig[uint64, uint64]()
+	cfg.Capacity = cap
+	cfg.OnEvict = onEvicted
+	cfg.HashKey = hashUint64
+	cfg.Lifetime = lifetime
+
+	lru, err := NewWithConfig(cfg)
 	FatalIf(t, err != nil, "Failed to create LRU: %v", err)
 
 	return lru
+}
+
+func makeLRU(t *testing.T, cap uint32, evictCounter *int) *LRU[uint64, uint64] {
+	return makeLRUWithLifetime(t, cap, evictCounter, 0)
 }
 
 func TestLRU(t *testing.T) {
@@ -115,6 +129,32 @@ func TestLRU_Remove(t *testing.T) {
 	FatalIf(t, !lru.Remove(3), "Failed to remove most recent entry %d", 3)
 	FatalIf(t, evictCounter != 2, "Unexpected # of evictions: %d (!= %d)", evictCounter, 2)
 	FatalIf(t, lru.Len() != 0, "Unexpected # of entries: %d (!= %d)", lru.Len(), 0)
+}
+
+func TestLRU_AddWithExpire(t *testing.T) {
+	// check for LRU default lifetime + element specific override
+	lru := makeLRUWithLifetime(t, 2, nil, 100*time.Millisecond)
+	lru.Add(1, 2)
+	lru.AddWithExpire(3, 4, 200*time.Millisecond)
+	_, ok := lru.Get(1)
+	FatalIf(t, !ok, "Failed to get")
+	time.Sleep(101 * time.Millisecond)
+	_, ok = lru.Get(1)
+	FatalIf(t, ok, "Expected expiration did not happen")
+	_, ok = lru.Get(3)
+	FatalIf(t, !ok, "Failed to get")
+	time.Sleep(100 * time.Millisecond)
+	_, ok = lru.Get(3)
+	FatalIf(t, ok, "Expected expiration did not happen")
+
+	// check for element specific lifetime
+	lru = makeLRU(t, 1, nil)
+	lru.AddWithExpire(1, 2, 100*time.Millisecond)
+	_, ok = lru.Get(1)
+	FatalIf(t, !ok, "Failed to get")
+	time.Sleep(101 * time.Millisecond)
+	_, ok = lru.Get(1)
+	FatalIf(t, ok, "Expected expiration did not happen")
 }
 
 // Test that Go map and the LRU stay in sync when adding

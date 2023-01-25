@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math"
 	"math/bits"
+	"time"
 )
 
 // OnEvictCallback is the function type for Config.OnEvict.
@@ -45,6 +46,10 @@ type Config[K comparable, V any] struct {
 
 	// HashKey is called for whenever the hash of a key is needed.
 	HashKey HashKeyCallback[K]
+
+	// Lifetime is the default lifetime for elements.
+	// A value of 0 (default) means forever (no expiration).
+	Lifetime time.Duration
 }
 
 // DefaultConfig returns a default configuration for New().
@@ -76,6 +81,10 @@ type element[K comparable, V any] struct {
 	// as a ring, such that &l.latest.prev is last element and
 	// &l.last.next is the latest element.
 	next, prev uint32
+
+	// expire is the point in time when the element expires.
+	// Its value is Unix milliseconds since epoch.
+	expire int64
 }
 
 const emptyBucket = math.MaxUint32
@@ -86,6 +95,11 @@ type LRU[K comparable, V any] struct {
 	elements []element[K, V]
 	onEvict  OnEvictCallback[K, V]
 	hash     HashKeyCallback[K]
+	lifetime time.Duration
+
+	// used for element clearing after removal or expiration
+	emptyKey   K
+	emptyValue V
 
 	head uint32 // index of the newest element in the cache
 	len  uint32 // current number of elements in the cache
@@ -140,6 +154,7 @@ func NewWithConfig[K comparable, V any](cfg Config[K, V]) (*LRU[K, V], error) {
 		onEvict:  cfg.OnEvict,
 		hash:     cfg.HashKey,
 		mask:     mask,
+		lifetime: cfg.Lifetime,
 	}
 
 	// Mark all slots as free.
@@ -254,9 +269,10 @@ func (lru *LRU[K, V]) move(new, old uint32) {
 
 // insert stores the k/v at pos.
 // It updates the head to point to this position.
-func (lru *LRU[K, V]) insert(pos uint32, key K, value V) {
+func (lru *LRU[K, V]) insert(pos uint32, key K, value V, lifetime time.Duration) {
 	lru.elements[pos].key = key
 	lru.elements[pos].value = value
+	lru.elements[pos].expire = expire(lifetime)
 
 	if lru.len == 0 {
 		lru.elements[pos].prev = pos
@@ -269,14 +285,31 @@ func (lru *LRU[K, V]) insert(pos uint32, key K, value V) {
 	lru.inserts++
 }
 
+func now() int64 {
+	return time.Now().UnixMilli()
+}
+
+func expire(lifetime time.Duration) int64 {
+	if lifetime == 0 {
+		return 0
+	}
+	return now() + lifetime.Milliseconds()
+}
+
+// clearKeyAndValue clears stale data to avoid memory leaks
+func (lru *LRU[K, V]) clearKeyAndValue(pos uint32) {
+	lru.elements[pos].key = lru.emptyKey
+	lru.elements[pos].value = lru.emptyValue
+}
+
 // Len returns the number of elements stored in the cache.
 func (lru *LRU[K, V]) Len() int {
 	return int(lru.len)
 }
 
-// Add adds a key:value to the cache.
+// AddWithExpire adds a key:value to the cache with a lifetime.
 // Returns true, true if key was updated and eviction occurred.
-func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
+func (lru *LRU[K, V]) AddWithExpire(key K, value V, lifetime time.Duration) (evicted bool) {
 	bucketPos, startPos := lru.keyToPos(key)
 	if startPos == emptyBucket {
 		pos := lru.len
@@ -295,16 +328,17 @@ func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
 
 		lru.elements[pos].nextBucket = pos
 		lru.elements[pos].prevBucket = pos
-		lru.insert(pos, key, value)
+		lru.insert(pos, key, value, lifetime)
 		return
 	}
 
-	// Walk through the bucket list to whether key already exists.
+	// Walk through the bucket list to see whether key already exists.
 	pos := startPos
 	for {
 		if lru.elements[pos].key == key {
 			// Key exists, replace the value and update element to be the head element.
 			lru.elements[pos].value = value
+			lru.elements[pos].expire = expire(lifetime)
 
 			if pos != lru.head {
 				lru.unlinkElement(pos)
@@ -338,7 +372,7 @@ func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
 	lru.elements[pos].prevBucket = lru.elements[startPos].prevBucket
 	lru.elements[lru.elements[startPos].prevBucket].nextBucket = pos
 	lru.elements[startPos].prevBucket = pos
-	lru.insert(pos, key, value)
+	lru.insert(pos, key, value, lifetime)
 
 	if lru.elements[pos].prevBucket != pos {
 		// The bucket now contains more than 1 element.
@@ -346,6 +380,12 @@ func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
 		lru.collisions++
 	}
 	return
+}
+
+// Add adds a key:value to the cache.
+// Returns true, true if key was updated and eviction occurred.
+func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
+	return lru.AddWithExpire(key, value, lru.lifetime)
 }
 
 // Get looks up a key's value from the cache, setting it as the most
@@ -356,6 +396,10 @@ func (lru *LRU[K, V]) Get(key K) (value V, ok bool) {
 		pos := startPos
 		for {
 			if key == lru.elements[pos].key {
+				if lru.elements[pos].expire != 0 && lru.elements[pos].expire <= now() {
+					lru.clearKeyAndValue(pos)
+					break
+				}
 				if pos != lru.head {
 					lru.unlinkElement(pos)
 					lru.setHead(pos)
@@ -371,9 +415,7 @@ func (lru *LRU[K, V]) Get(key K) (value V, ok bool) {
 		}
 	}
 
-	// We cannot use nil for an empty type
-	var v0 V
-	return v0, false
+	return lru.emptyValue, false
 }
 
 // Peek looks up a key's value from the cache, without changing its recent-ness.
@@ -383,6 +425,10 @@ func (lru *LRU[K, V]) Peek(key K) (value V, ok bool) {
 		pos := startPos
 		for {
 			if key == lru.elements[pos].key {
+				if lru.elements[pos].expire != 0 && lru.elements[pos].expire <= now() {
+					lru.clearKeyAndValue(pos)
+					break
+				}
 				return lru.elements[pos].value, true
 			}
 
@@ -394,9 +440,7 @@ func (lru *LRU[K, V]) Peek(key K) (value V, ok bool) {
 		}
 	}
 
-	// We cannot use nil for an empty type
-	var v0 V
-	return v0, false
+	return lru.emptyValue, false
 }
 
 // Contains checks for the existence of a key, without changing its recent-ness.
@@ -422,10 +466,7 @@ func (lru *LRU[K, V]) Remove(key K) (removed bool) {
 			lru.removals++
 
 			// remove stale data to avoid memory leaks
-			var k0 K
-			var v0 V
-			lru.elements[lru.len].key = k0
-			lru.elements[lru.len].value = v0
+			lru.clearKeyAndValue(lru.len)
 			return true
 		}
 
