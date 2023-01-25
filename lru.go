@@ -228,7 +228,6 @@ func (lru *LRU[K, V]) evict(pos uint32) {
 // Move element from position old to new.
 // That avoids 'gaps' and new elements can always be simply appended.
 func (lru *LRU[K, V]) move(new, old uint32) {
-	// fmt.Printf("move %d -> %d (head %d)\n", old, new, lru.head)
 	if new == old {
 		return
 	}
@@ -279,7 +278,6 @@ func (lru *LRU[K, V]) Len() int {
 // Returns true, true if key was updated and eviction occurred.
 func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
 	bucketPos, startPos := lru.keyToPos(key)
-	// fmt.Printf("bucketPos %d startPos %d\n", bucketPos, startPos)
 	if startPos == emptyBucket {
 		pos := lru.len
 
@@ -287,13 +285,11 @@ func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
 			// Capacity reached, evict the oldest entry and
 			// store the new entry at evicted position.
 			pos = lru.elements[lru.head].next
-			// fmt.Printf("evict %d\n", pos)
 			lru.evict(pos)
 			evicted = true
 		}
 
 		// insert new (first) entry into the bucket
-		// fmt.Printf("insert at %d\n", pos)
 		lru.buckets[bucketPos] = pos
 		lru.elements[pos].bucketPos = bucketPos
 
@@ -304,11 +300,9 @@ func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
 	}
 
 	// Walk through the bucket list to whether key already exists.
-	// fmt.Printf("walk\n")
 	pos := startPos
 	for {
 		if lru.elements[pos].key == key {
-			// fmt.Printf("replace\n")
 			// Key exists, replace the value and update element to be the head element.
 			lru.elements[pos].value = value
 
@@ -328,31 +322,29 @@ func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
 		}
 	}
 
-	// fmt.Printf("collision\n")
-	// At this point we know that key is a new entry, and we
-	// also have a collision.
-	lru.collisions++
-
 	pos = lru.len
 	if pos == lru.cap {
 		// Capacity reached, evict the oldest entry and
 		// store the new entry at evicted position.
 		pos = lru.elements[lru.head].next
-		// fmt.Printf("evict %d\n", pos)
 		lru.evict(pos)
 		evicted = true
 	}
 
 	// insert new entry into the existing bucket before startPos
-	// fmt.Printf("insert at %d (startPos %d bucketPos %d)\n", pos, startPos, bucketPos)
 	lru.buckets[bucketPos] = pos
 	lru.elements[pos].bucketPos = bucketPos
-
 	lru.elements[pos].nextBucket = startPos
 	lru.elements[pos].prevBucket = lru.elements[startPos].prevBucket
 	lru.elements[lru.elements[startPos].prevBucket].nextBucket = pos
 	lru.elements[startPos].prevBucket = pos
 	lru.insert(pos, key, value)
+
+	if lru.elements[pos].prevBucket != pos {
+		// The bucket now contains more than 1 element.
+		// That means we have a collision.
+		lru.collisions++
+	}
 	return
 }
 
