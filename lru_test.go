@@ -19,6 +19,7 @@ package go_freelru
 
 import (
 	"encoding/binary"
+	"math/rand"
 	"testing"
 )
 
@@ -59,7 +60,7 @@ func makeLRU(t *testing.T, cap uint32, evictCounter *int) *LRU[uint64, uint64] {
 }
 
 func TestLRU(t *testing.T) {
-	const CAP = 128
+	const CAP = 32
 
 	evictCounter := 0
 	lru := makeLRU(t, CAP, &evictCounter)
@@ -114,6 +115,56 @@ func TestLRU_Remove(t *testing.T) {
 	FatalIf(t, !lru.Remove(3), "Failed to remove most recent entry %d", 3)
 	FatalIf(t, evictCounter != 2, "Unexpected # of evictions: %d (!= %d)", evictCounter, 2)
 	FatalIf(t, lru.Len() != 0, "Unexpected # of entries: %d (!= %d)", lru.Len(), 0)
+}
+
+// Test that Go map and the LRU stay in sync when adding
+// and randomly removing elements.
+func TestLRUMatch(t *testing.T) {
+	const CAP = 128
+
+	backup := make(map[uint64]uint64, CAP)
+
+	onEvicted := func(k uint64, v uint64) {
+		FatalIf(t, k != v, "Evict value not matching (%v != %v)", k, v)
+		delete(backup, k)
+	}
+
+	lru, err := New(CAP, onEvicted, hashUint64)
+	FatalIf(t, err != nil, "Failed to create LRU: %v", err)
+
+	for i := uint64(0); i < 100000; i++ {
+		lru.Add(i, i)
+		backup[i] = i
+
+		// ~33% chance to remove a random element
+		r := i - uint64(rand.Int63()%(CAP*3)) // nolint:gosec
+		lru.Remove(r)
+
+		FatalIf(t, lru.Len() != len(backup), "Len does not match (%d vs %d)",
+			lru.Len(), len(backup))
+
+		keys := lru.Keys()
+		FatalIf(t, len(keys) != len(backup), "Number of keys does not match (%d vs %d)",
+			len(keys), len(backup))
+
+		for _, key := range keys {
+			backupVal, ok := backup[key]
+			FatalIf(t, !ok, "Failed to find key %d in map", key)
+
+			lruVal, ok := lru.Peek(key)
+			FatalIf(t, !ok, "Failed to find key %d in LRU", key)
+
+			FatalIf(t, backupVal != lruVal, "Unexpected mismatch of values: %#v %#v", backupVal, lruVal)
+		}
+
+		for k, v := range backup {
+			lruVal, ok := lru.Peek(k)
+			FatalIf(t, !ok, "Failed to find key %d in LRU (i=%d)", k, i)
+			FatalIf(t, v != lruVal, "Unexpected mismatch of values: %#v %#v", v, lruVal)
+		}
+	}
+
+	lru.PrintStats()
 }
 
 func FatalIf(t *testing.T, fail bool, fmt string, args ...any) {
