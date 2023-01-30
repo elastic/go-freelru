@@ -302,6 +302,30 @@ func (lru *LRU[K, V]) clearKeyAndValue(pos uint32) {
 	lru.elements[pos].value = lru.emptyValue
 }
 
+func (lru *LRU[K, V]) findKey(key K) (uint32, bool) {
+	_, startPos := lru.keyToPos(key)
+	if startPos == emptyBucket {
+		return emptyBucket, false
+	}
+
+	pos := startPos
+	for {
+		if key == lru.elements[pos].key {
+			if lru.elements[pos].expire != 0 && lru.elements[pos].expire <= now() {
+				lru.clearKeyAndValue(pos)
+				return emptyBucket, false
+			}
+			return pos, true
+		}
+
+		pos = lru.elements[pos].nextBucket
+		if pos == startPos {
+			// Key not found
+			return emptyBucket, false
+		}
+	}
+}
+
 // Len returns the number of elements stored in the cache.
 func (lru *LRU[K, V]) Len() int {
 	return int(lru.len)
@@ -391,56 +415,24 @@ func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
 // Get looks up a key's value from the cache, setting it as the most
 // recently used item.
 func (lru *LRU[K, V]) Get(key K) (value V, ok bool) {
-	_, startPos := lru.keyToPos(key)
-	if startPos != emptyBucket {
-		pos := startPos
-		for {
-			if key == lru.elements[pos].key {
-				if lru.elements[pos].expire != 0 && lru.elements[pos].expire <= now() {
-					lru.clearKeyAndValue(pos)
-					break
-				}
-				if pos != lru.head {
-					lru.unlinkElement(pos)
-					lru.setHead(pos)
-				}
-				return lru.elements[pos].value, true
-			}
-
-			pos = lru.elements[pos].nextBucket
-			if pos == startPos {
-				// Key not found
-				break
-			}
+	if pos, ok := lru.findKey(key); ok {
+		if pos != lru.head {
+			lru.unlinkElement(pos)
+			lru.setHead(pos)
 		}
+		return lru.elements[pos].value, ok
 	}
 
-	return lru.emptyValue, false
+	return
 }
 
 // Peek looks up a key's value from the cache, without changing its recent-ness.
 func (lru *LRU[K, V]) Peek(key K) (value V, ok bool) {
-	_, startPos := lru.keyToPos(key)
-	if startPos != emptyBucket {
-		pos := startPos
-		for {
-			if key == lru.elements[pos].key {
-				if lru.elements[pos].expire != 0 && lru.elements[pos].expire <= now() {
-					lru.clearKeyAndValue(pos)
-					break
-				}
-				return lru.elements[pos].value, true
-			}
-
-			pos = lru.elements[pos].nextBucket
-			if pos == startPos {
-				// Key not found
-				break
-			}
-		}
+	if pos, ok := lru.findKey(key); ok {
+		return lru.elements[pos].value, ok
 	}
 
-	return lru.emptyValue, false
+	return
 }
 
 // Contains checks for the existence of a key, without changing its recent-ness.
@@ -452,32 +444,18 @@ func (lru *LRU[K, V]) Contains(key K) (ok bool) {
 // Remove removes the key from the cache.
 // The return value indicates whether the key existed or not.
 func (lru *LRU[K, V]) Remove(key K) (removed bool) {
-	_, startPos := lru.keyToPos(key)
-	if startPos == emptyBucket {
-		return false
+	if pos, ok := lru.findKey(key); ok {
+		// Key exists, update element to be the head element.
+		lru.evict(pos)
+		lru.move(pos, lru.len)
+		lru.removals++
+
+		// remove stale data to avoid memory leaks
+		lru.clearKeyAndValue(lru.len)
+		return ok
 	}
 
-	pos := startPos
-	for {
-		if key == lru.elements[pos].key {
-			// Key exists, update element to be the head element.
-			lru.evict(pos)
-			lru.move(pos, lru.len)
-			lru.removals++
-
-			// remove stale data to avoid memory leaks
-			lru.clearKeyAndValue(lru.len)
-			return true
-		}
-
-		pos = lru.elements[pos].nextBucket
-		if pos == startPos {
-			// Key not found
-			break
-		}
-	}
-
-	return false
+	return
 }
 
 // Keys returns a slice of the keys in the cache, from oldest to newest.
