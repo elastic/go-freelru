@@ -1,4 +1,4 @@
-# FreeLRU - A simple LRU cache library for Go (GC-less, generic)
+# FreeLRU - A GC-less, fast and generic LRU hashmap library for Go
 
 FreeLRU allows you to cache objects without introducing GC overhead.
 It uses Go generics for simplicity, type-safety and performance over interface types.
@@ -29,26 +29,31 @@ a garbage collection phase.
 The GC overhead can be quite large in comparison with the overall CPU usage of an application.
 Especially long-running and low-CPU applications with lots of cached objects suffer from the GC overhead.
 
-### Avoiding interface types by using generics
+### Type safety by using generics
 
-Interface types are pointer types and thus require a heap allocation for storing.
+Using generics allows type-checking at compile time, so type conversions are needed at runtime.
+The interface type or `any` requires type conversions at runtime, which may fail.
+
+### Reducing memory allocations by using generics
+
+The interface types (aka `any`) is a pointer type and thus require a heap allocation when being stored.
 This is true even if you just need an integer to integer lookup or translation.
 
-With generics, these two allocations can be avoided: as long as the key and value types do not contain
+With generics, the two allocations for key and value can be avoided: as long as the key and value types do not contain
 pointer types, no allocations will take place when adding such objects to the cache.
 
 ### Overcommitting of hashtable memory
 
 Each hashtable implementation tries to avoid hash collisions because collisions are expensive.
-FreeLRU allows to to allocate more elements than the maximum number of elements stored.
-This value is configurable and can be increased to reduce the likelyness of collisions.
-The performance of the LRU operations will, in general, become faster by doing so.
-Setting the size of LRU to a value of 2^N is recognized to replace costly divisions by a bitwise AND.
+FreeLRU allows allocating more elements than the maximum number of elements stored.
+This value is configurable and can be increased to reduce the likeliness of collisions.
+The performance of the LRU operations will generally become faster by doing so.
+Setting the size of LRU to a value of 2^N is recognized to replace slow divisions by fast bitwise AND operations.
 
 ## Benchmarks
 
 Below we compare FreeLRU with SimpleLRU, FreeCache and Go map.
-The comparison with FreeCache is just for reference - it is thread-safe and thus it has a mutex/locking overhead.
+The comparison with FreeCache is just for reference - it is thread-safe and comes with a mutex/locking overhead.
 The comparison with Go map is also just for reference - Go maps don't implement LRU functionality and thus should
 be significantly faster than FreeLRU. It turns out, the opposite is the case.
 
