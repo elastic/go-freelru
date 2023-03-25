@@ -28,15 +28,13 @@ import (
 	freelru "github.com/elastic/go-freelru"
 )
 
-const lruSize = 8192
-
 func BenchmarkFreeLRUGet(b *testing.B) {
-	lru, err := freelru.New[int, int](lruSize, nil, hashIntAESENC)
+	lru, err := freelru.New[int, int](CAP, hashIntAESENC)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
 
-	for i := 0; i < 8192; i++ {
+	for i := 0; i < CAP; i++ {
 		// nolint:gosec
 		val := int(rand.Int63())
 		lru.Add(i, val)
@@ -51,12 +49,12 @@ func BenchmarkFreeLRUGet(b *testing.B) {
 }
 
 func BenchmarkSimpleLRUGet(b *testing.B) {
-	lru, err := simplelru.NewLRU[int, int](lruSize, nil)
+	lru, err := simplelru.NewLRU[int, int](CAP, nil)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
 
-	for i := 0; i < 8192; i++ {
+	for i := 0; i < CAP; i++ {
 		// nolint:gosec
 		val := int(rand.Int63())
 		lru.Add(i, val)
@@ -71,12 +69,12 @@ func BenchmarkSimpleLRUGet(b *testing.B) {
 }
 
 func BenchmarkFreeCacheGet(b *testing.B) {
-	lru := freecache.NewCache(lruSize)
+	lru := freecache.NewCache(CAP)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < 8192; i++ {
+	for i := 0; i < CAP; i++ {
 		// nolint:gosec
 		val := int(rand.Int63())
 		bv := [8]byte{}
@@ -102,9 +100,9 @@ func BenchmarkFreeCacheGet(b *testing.B) {
 }
 
 func BenchmarkMapGet(b *testing.B) {
-	cache := make(map[int]int, lruSize)
+	cache := make(map[int]int, CAP)
 
-	for i := 0; i < 8192; i++ {
+	for i := 0; i < CAP; i++ {
 		// nolint:gosec
 		val := int(rand.Int63())
 		cache[i] = val

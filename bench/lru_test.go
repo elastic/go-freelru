@@ -30,6 +30,8 @@ import (
 	freelru "github.com/elastic/go-freelru"
 )
 
+const CAP = 8192
+
 func BenchmarkHashInt_FNV1A(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = hashIntFNV1A(i)
@@ -70,19 +72,8 @@ func BenchmarkHashString_XXHASH(b *testing.B) {
 	}
 }
 
-func makeConfig[K comparable, V any](hash freelru.HashKeyCallback[K]) *freelru.Config[K, V] {
-	cfg := freelru.DefaultConfig[K, V]()
-	cfg.Capacity = 8192
-	cfg.Size = 8192 // Reader may try out a factor of 2: it makes the LRU significantly faster.
-	cfg.HashKey = hash
-	return &cfg
-}
-
-func runFreeLRUAddInt[V any](b *testing.B, cfg *freelru.Config[int, V]) {
-	if cfg == nil {
-		cfg = makeConfig[int, V](hashIntAESENC)
-	}
-	lru, err := freelru.NewWithConfig(*cfg)
+func runFreeLRUAddInt[V any](b *testing.B) {
+	lru, err := freelru.New[int, V](CAP, hashIntAESENC)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
@@ -101,11 +92,8 @@ func runFreeLRUAddInt[V any](b *testing.B, cfg *freelru.Config[int, V]) {
 	}
 }
 
-func runFreeLRUAddIntAscending[V any](b *testing.B, cfg *freelru.Config[int, V]) {
-	if cfg == nil {
-		cfg = makeConfig[int, V](hashIntAESENC)
-	}
-	lru, err := freelru.NewWithConfig(*cfg)
+func runFreeLRUAddIntAscending[V any](b *testing.B) {
+	lru, err := freelru.New[int, V](CAP, hashIntAESENC)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
@@ -120,23 +108,23 @@ func runFreeLRUAddIntAscending[V any](b *testing.B, cfg *freelru.Config[int, V])
 }
 
 func BenchmarkFreeLRUAdd_int_int(b *testing.B) {
-	runFreeLRUAddInt[int](b, nil)
+	runFreeLRUAddInt[int](b)
 }
 
 func BenchmarkFreeLRUAdd_int_int128(b *testing.B) {
-	runFreeLRUAddInt[int128](b, nil)
+	runFreeLRUAddInt[int128](b)
 }
 
 func BenchmarkFreeLRUAdd_int_int_Ascending(b *testing.B) {
-	runFreeLRUAddIntAscending[int](b, nil)
+	runFreeLRUAddIntAscending[int](b)
 }
 
 func BenchmarkFreeLRUAdd_int_int128_Ascending(b *testing.B) {
-	runFreeLRUAddIntAscending[int128](b, nil)
+	runFreeLRUAddIntAscending[int128](b)
 }
 
 func BenchmarkFreeLRUAdd_uint32_uint64(b *testing.B) {
-	lru, err := freelru.NewWithConfig(*makeConfig[uint32, uint64](hashUInt32))
+	lru, err := freelru.New[uint32, uint64](CAP, hashUInt32)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
@@ -151,7 +139,7 @@ func BenchmarkFreeLRUAdd_uint32_uint64(b *testing.B) {
 }
 
 func BenchmarkFreeLRUAdd_string_uint64(b *testing.B) {
-	lru, err := freelru.NewWithConfig(*makeConfig[string, uint64](hashStringAESENC))
+	lru, err := freelru.New[string, uint64](CAP, hashStringAESENC)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
@@ -168,7 +156,7 @@ func BenchmarkFreeLRUAdd_string_uint64(b *testing.B) {
 }
 
 func BenchmarkFreeLRUAdd_int_string(b *testing.B) {
-	lru, err := freelru.NewWithConfig(*makeConfig[int, string](hashIntFNV1A))
+	lru, err := freelru.New[int, string](CAP, hashIntFNV1A)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
@@ -182,7 +170,7 @@ func BenchmarkFreeLRUAdd_int_string(b *testing.B) {
 }
 
 func runSimpleLRUAddInt[V any](b *testing.B) {
-	lru, err := simplelru.NewLRU[int, V](8192, nil)
+	lru, err := simplelru.NewLRU[int, V](CAP, nil)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
@@ -205,7 +193,7 @@ func BenchmarkSimpleLRUAdd_int_int128(b *testing.B) {
 }
 
 func BenchmarkSimpleLRUAdd_uint32_uint64(b *testing.B) {
-	lru, err := simplelru.NewLRU[uint32, uint64](8192, nil)
+	lru, err := simplelru.NewLRU[uint32, uint64](CAP, nil)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
@@ -220,7 +208,7 @@ func BenchmarkSimpleLRUAdd_uint32_uint64(b *testing.B) {
 }
 
 func BenchmarkSimpleLRUAdd_string_uint64(b *testing.B) {
-	lru, err := simplelru.NewLRU[string, uint64](8192, nil)
+	lru, err := simplelru.NewLRU[string, uint64](CAP, nil)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
@@ -237,7 +225,7 @@ func BenchmarkSimpleLRUAdd_string_uint64(b *testing.B) {
 }
 
 func BenchmarkSimpleLRUAdd_int_string(b *testing.B) {
-	lru, err := simplelru.NewLRU[int, string](8192, nil)
+	lru, err := simplelru.NewLRU[int, string](CAP, nil)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
@@ -251,7 +239,7 @@ func BenchmarkSimpleLRUAdd_int_string(b *testing.B) {
 }
 
 func BenchmarkFreeCacheAdd_int_int(b *testing.B) {
-	lru := freecache.NewCache(8192)
+	lru := freecache.NewCache(CAP)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -267,7 +255,7 @@ func BenchmarkFreeCacheAdd_int_int(b *testing.B) {
 }
 
 func BenchmarkFreeCacheAdd_int_int128(b *testing.B) {
-	lru := freecache.NewCache(8192)
+	lru := freecache.NewCache(CAP)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -284,7 +272,7 @@ func BenchmarkFreeCacheAdd_int_int128(b *testing.B) {
 }
 
 func BenchmarkFreeCacheAdd_uint32_uint64(b *testing.B) {
-	lru := freecache.NewCache(8192)
+	lru := freecache.NewCache(CAP)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -300,7 +288,7 @@ func BenchmarkFreeCacheAdd_uint32_uint64(b *testing.B) {
 }
 
 func BenchmarkFreeCacheAdd_string_uint64(b *testing.B) {
-	lru := freecache.NewCache(8192)
+	lru := freecache.NewCache(CAP)
 
 	keys := makeStrings(b.N)
 
@@ -317,7 +305,7 @@ func BenchmarkFreeCacheAdd_string_uint64(b *testing.B) {
 }
 
 func BenchmarkFreeCacheAdd_int_string(b *testing.B) {
-	lru := freecache.NewCache(8192)
+	lru := freecache.NewCache(CAP)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -369,7 +357,7 @@ func BenchmarkMapAdd_string_uint64(b *testing.B) {
 // go tool pprof mem.out
 // (then check the top10)
 func TestSimpleLRUAdd(t *testing.T) {
-	cache, _ := simplelru.NewLRU[uint64, int](8192, nil)
+	cache, _ := simplelru.NewLRU[uint64, int](CAP, nil)
 
 	var val int
 	for i := uint64(0); i < 1000; i++ {

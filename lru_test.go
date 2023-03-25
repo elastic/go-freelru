@@ -50,21 +50,18 @@ func hashUint64(i uint64) uint32 {
 
 func makeLRUWithLifetime(t *testing.T, cap uint32, evictCounter *int,
 	lifetime time.Duration) *LRU[uint64, uint64] {
-	onEvicted := func(k uint64, v uint64) {
+	onEvict := func(k uint64, v uint64) {
 		FatalIf(t, k+1 != v, "Evict value not matching (%v+1 != %v)", k, v)
 		if evictCounter != nil {
 			*evictCounter++
 		}
 	}
 
-	cfg := DefaultConfig[uint64, uint64]()
-	cfg.Capacity = cap
-	cfg.OnEvict = onEvicted
-	cfg.HashKey = hashUint64
-	cfg.Lifetime = lifetime
-
-	lru, err := NewWithConfig(cfg)
+	lru, err := New[uint64, uint64](cap, hashUint64)
 	FatalIf(t, err != nil, "Failed to create LRU: %v", err)
+
+	lru.SetLifetime(lifetime)
+	lru.SetOnEvict(onEvict)
 
 	return lru
 }
@@ -164,13 +161,14 @@ func TestLRUMatch(t *testing.T) {
 
 	backup := make(map[uint64]uint64, CAP)
 
-	onEvicted := func(k uint64, v uint64) {
+	onEvict := func(k uint64, v uint64) {
 		FatalIf(t, k != v, "Evict value not matching (%v != %v)", k, v)
 		delete(backup, k)
 	}
 
-	lru, err := New(CAP, onEvicted, hashUint64)
+	lru, err := New[uint64, uint64](CAP, hashUint64)
 	FatalIf(t, err != nil, "Failed to create LRU: %v", err)
+	lru.SetOnEvict(onEvict)
 
 	for i := uint64(0); i < 100000; i++ {
 		lru.Add(i, i)
@@ -235,7 +233,7 @@ func TestMapAdd(t *testing.T) {
 // go tool pprof mem.out
 // (then check the top10)
 func TestFreeLRUAdd(t *testing.T) {
-	cache, _ := New[uint64, int](count, nil, hashUint64)
+	cache, _ := New[uint64, int](count, hashUint64)
 
 	var val int
 	for i := uint64(0); i < count; i++ {

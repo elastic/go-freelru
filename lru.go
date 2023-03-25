@@ -31,36 +31,6 @@ type OnEvictCallback[K comparable, V any] func(K, V)
 // HashKeyCallback is the function that creates a hash from the passed key.
 type HashKeyCallback[K comparable] func(K) uint32
 
-// Config is the type for the LRU configuration passed to New().
-type Config[K comparable, V any] struct {
-	// Capacity is the maximal number of elements of the LRU cache before eviction takes place.
-	Capacity uint32
-
-	// Size is the size of the LRU in elements.
-	// It must be >= Capacity.
-	// The more it exceeds Capacity, the less likely are costly collisions when inserting elements.
-	Size uint32
-
-	// OnEvict is called for every eviction.
-	OnEvict OnEvictCallback[K, V]
-
-	// HashKey is called for whenever the hash of a key is needed.
-	HashKey HashKeyCallback[K]
-
-	// Lifetime is the default lifetime for elements.
-	// A value of 0 (default) means forever (no expiration).
-	Lifetime time.Duration
-}
-
-// DefaultConfig returns a default configuration for New().
-func DefaultConfig[K comparable, V any]() Config[K, V] {
-	return Config[K, V]{
-		Capacity: 64,
-		Size:     64,
-		OnEvict:  nil,
-	}
-}
-
 type element[K comparable, V any] struct {
 	key   K
 	value V
@@ -113,48 +83,55 @@ type LRU[K comparable, V any] struct {
 	removals   uint64
 }
 
-// New constructs an LRU with the given capacity of elements.
-// The onEvict function is called for each evicted cache entry.
-func New[K comparable, V any](cap uint32, onEvict OnEvictCallback[K, V],
-	hash HashKeyCallback[K]) (*LRU[K, V], error) {
-	cfg := DefaultConfig[K, V]()
-	cfg.Capacity = cap
-	cfg.Size = cap
-	cfg.OnEvict = onEvict
-	cfg.HashKey = hash
-	return NewWithConfig(cfg)
+// SetLifetime sets the default lifetime of LRU elements.
+// Lifetime 0 means "forever".
+func (lru *LRU[K, V]) SetLifetime(lifetime time.Duration) {
+	lru.lifetime = lifetime
 }
 
-// NewWithConfig constructs an LRU from the given configuration.
-func NewWithConfig[K comparable, V any](cfg Config[K, V]) (*LRU[K, V], error) {
-	if cfg.Capacity == 0 {
-		return nil, errors.New("Capacity must be positive")
+// SetOnEvict sets the OnEvict callback function.
+// The onEvict function is called for each evicted lru entry.
+func (lru *LRU[K, V]) SetOnEvict(onEvict OnEvictCallback[K, V]) {
+	lru.onEvict = onEvict
+}
+
+// New constructs an LRU with the given capacity of elements.
+// The hash function calculates a hash value from the keys.
+func New[K comparable, V any](cap uint32, hash HashKeyCallback[K]) (*LRU[K, V], error) {
+	return NewWithSize[K, V](cap, cap, hash)
+}
+
+// NewWithSize constructs an LRU with the given capacity and size.
+// The hash function calculates a hash value from the keys.
+// A size greater than the capacity increases memory consumption and decreases the CPU consumption
+// by reducing the chance of collisions.
+// Size must not be lower than the capacity.
+func NewWithSize[K comparable, V any](cap, size uint32, hash HashKeyCallback[K]) (
+	*LRU[K, V], error) {
+	if cap == 0 {
+		return nil, errors.New("capacity must be positive")
 	}
-	if cfg.Size == emptyBucket {
-		return nil, fmt.Errorf("size must not be %#X", cfg.Capacity)
+	if size == emptyBucket {
+		return nil, fmt.Errorf("size must not be %#X", size)
 	}
-	if cfg.Size < cfg.Capacity {
-		return nil, fmt.Errorf("size (%d) is smaller than capacity (%d)", cfg.Size, cfg.Capacity)
+	if size < cap {
+		return nil, fmt.Errorf("size (%d) is smaller than capacity (%d)", size, cap)
 	}
-	if cfg.HashKey == nil {
-		return nil, errors.New("HashKey must be set")
+	if hash == nil {
+		return nil, errors.New("hash function must be set")
 	}
 
-	// The hashtable size is over-provisioned by X% to reduce collisions
-	// as collisions are relatively expensive.
-	mask := uint32(0)
-	if bits.OnesCount32(cfg.Size) == 1 {
-		mask = cfg.Size - 1
-	}
 	lru := &LRU[K, V]{
-		cap:      cfg.Capacity,
-		size:     cfg.Size,
-		buckets:  make([]uint32, cfg.Size),
-		elements: make([]element[K, V], cfg.Size),
-		onEvict:  cfg.OnEvict,
-		hash:     cfg.HashKey,
-		mask:     mask,
-		lifetime: cfg.Lifetime,
+		cap:      cap,
+		size:     cap,
+		hash:     hash,
+		buckets:  make([]uint32, size),
+		elements: make([]element[K, V], size),
+	}
+
+	// If the size is 2^N, we can avoid costly divisions.
+	if bits.OnesCount32(lru.size) == 1 {
+		lru.mask = lru.size - 1
 	}
 
 	// Mark all slots as free.
