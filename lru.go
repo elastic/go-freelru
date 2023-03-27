@@ -135,7 +135,7 @@ func NewWithSize[K comparable, V any](cap, size uint32, hash HashKeyCallback[K])
 	}
 
 	// Mark all slots as free.
-	for i := range lru.elements {
+	for i := range lru.buckets {
 		lru.buckets[i] = emptyBucket
 	}
 
@@ -444,6 +444,24 @@ func (lru *LRU[K, V]) Keys() []K {
 		pos = lru.elements[pos].next
 	}
 	return keys
+}
+
+// Purge purges all data (key and value) from the LRU.
+func (lru *LRU[K, V]) Purge() {
+	for i := range lru.buckets {
+		lru.buckets[i] = emptyBucket
+	}
+
+	for i := range lru.elements {
+		lru.elements[i].key = lru.emptyKey
+		lru.elements[i].value = lru.emptyValue
+	}
+
+	lru.len = 0
+	lru.collisions = 0
+	lru.inserts = 0
+	lru.evictions = 0
+	lru.removals = 0
 }
 
 // just used for debugging
