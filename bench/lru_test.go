@@ -26,6 +26,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/coocood/freecache"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/zeebo/xxh3"
 
 	freelru "github.com/elastic/go-freelru"
 )
@@ -52,6 +53,14 @@ func BenchmarkHashInt_XXHASH(b *testing.B) {
 	}
 }
 
+func BenchmarkHashInt_XXH3HASH(b *testing.B) {
+	bv := [8]byte{}
+	for i := 0; i < b.N; i++ {
+		binary.BigEndian.PutUint64(bv[:], uint64(i))
+		_ = xxh3.Hash(bv[:])
+	}
+}
+
 var testString = "test123 dlfksdlföls sdfsdlskdg sgksgjdgs gdkfggk"
 
 func BenchmarkHashString_FNV1A(b *testing.B) {
@@ -69,6 +78,12 @@ func BenchmarkHashString_AESENC(b *testing.B) {
 func BenchmarkHashString_XXHASH(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = hashStringXXHASH(testString)
+	}
+}
+
+func BenchmarkHashString_XXH3HASH(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = hashStringXXH3HASH(testString)
 	}
 }
 

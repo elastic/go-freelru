@@ -22,6 +22,7 @@ import (
 	"unsafe"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/zeebo/xxh3"
 )
 
 //go:noescape
@@ -135,6 +136,10 @@ type sliceHeader struct {
 
 func hashStringXXHASH(s string) uint32 {
 	return uint32(xxhash.Sum64String(s))
+}
+
+func hashStringXXH3HASH(s string) uint32 {
+	return uint32(xxh3.HashString(s))
 }
 
 // go:noescape
