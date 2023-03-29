@@ -495,6 +495,6 @@ func (lru *LRU[K, V]) dump() {
 func (lru *LRU[K, V]) PrintStats() {
 	fmt.Printf("Inserts: %d Collisions: %d (%.2f%%) Evictions: %d Removals: %d\n",
 		lru.inserts, lru.collisions,
-		float64(lru.collisions)/float64(lru.inserts),
+		float64(lru.collisions)/float64(lru.inserts)*100,
 		lru.evictions, lru.removals)
 }
