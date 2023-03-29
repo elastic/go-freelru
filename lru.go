@@ -364,11 +364,16 @@ func (lru *LRU[K, V]) AddWithExpire(key K, value V, lifetime time.Duration) (evi
 		pos = lru.elements[lru.head].next
 		lru.evict(pos)
 		evicted = true
+		startPos = lru.buckets[bucketPos]
+		if startPos == emptyBucket {
+			startPos = pos
+		}
 	}
 
 	// insert new entry into the existing bucket before startPos
 	lru.buckets[bucketPos] = pos
 	lru.elements[pos].bucketPos = bucketPos
+
 	lru.elements[pos].nextBucket = startPos
 	lru.elements[pos].prevBucket = lru.elements[startPos].prevBucket
 	lru.elements[lru.elements[startPos].prevBucket].nextBucket = pos
