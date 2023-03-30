@@ -25,10 +25,9 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/coocood/freecache"
+	"github.com/elastic/go-freelru"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/zeebo/xxh3"
-
-	freelru "github.com/elastic/go-freelru"
 )
 
 const CAP = 8192

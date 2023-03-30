@@ -23,9 +23,8 @@ import (
 	"testing"
 
 	"github.com/coocood/freecache"
+	"github.com/elastic/go-freelru"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
-
-	freelru "github.com/elastic/go-freelru"
 )
 
 func BenchmarkFreeLRUGet(b *testing.B) {
