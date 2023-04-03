@@ -31,7 +31,7 @@ Especially long-running and low-CPU applications with lots of cached objects suf
 
 ### Type safety by using generics
 
-Using generics allows type-checking at compile time, so type conversions are needed at runtime.
+Using generics allows type-checking at compile time, so type conversions are not needed at runtime.
 The interface type or `any` requires type conversions at runtime, which may fail.
 
 ### Reducing memory allocations by using generics
