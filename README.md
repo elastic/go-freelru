@@ -62,7 +62,7 @@ The numbers are from my laptop (Intel(R) Core(TM) i7-12800H @ 2800 MHz).
 The key and value types are part of the benchmark name, e.g. `int_int` means key and value are of type `int`.
 `int128` is a struct type made of two `uint64` fields.
 
-To run the benchamrks
+To run the benchmarks
 ```
 go test -count 1 -bench . -run XXX
 ```
@@ -89,6 +89,11 @@ BenchmarkFreeCacheAdd_int_int128-20              9240273               125.6 ns/
 BenchmarkFreeCacheAdd_uint32_uint64-20           8140896               132.1 ns/op             1 B/op          0 allocs/op
 BenchmarkFreeCacheAdd_string_uint64-20           8248917               137.9 ns/op             1 B/op          0 allocs/op
 BenchmarkFreeCacheAdd_int_string-20              8079253               145.0 ns/op            64 B/op          1 allocs/op
+BenchmarkRistrettoAdd_int_int-20                11102623               100.1 ns/op           109 B/op          2 allocs/op
+BenchmarkRistrettoAdd_int128_int-20             10317686               113.5 ns/op           129 B/op          4 allocs/op
+BenchmarkRistrettoAdd_uint32_uint64-20          12892147                94.28 ns/op          104 B/op          2 allocs/op
+BenchmarkRistrettoAdd_string_uint64-20          11266416               105.8 ns/op           122 B/op          3 allocs/op
+BenchmarkRistrettoAdd_int_string-20             10360814               107.4 ns/op           129 B/op          4 allocs/op
 BenchmarkMapAdd_int_int-20                      35306983                46.29 ns/op            0 B/op          0 allocs/op
 BenchmarkMapAdd_int_int128-20                   30986126                45.16 ns/op            0 B/op          0 allocs/op
 BenchmarkMapAdd_string_uint64-20                28406497                49.35 ns/op            0 B/op          0 allocs/op
@@ -96,7 +101,7 @@ BenchmarkMapAdd_string_uint64-20                28406497                49.35 ns
 (*)
 There is an interesting affect when using increasing number (0..N) as keys in combination with FNV1a().
 The number of collisions is strongly reduced here, thus the high performance.
-Exchanging the sequential numbers with random numbers results in roughly the same performance than the other results.
+Exchanging the sequential numbers with random numbers results in roughly the same performance as the other results.
 
 Just to give you an idea for 100% memory overcommitment:
 Performance increased by ~20%.
@@ -115,6 +120,7 @@ This is with 0% memory overcommitment (default) and a capacity of 8192.
 BenchmarkFreeLRUGet-20                          83158561                13.80 ns/op            0 B/op          0 allocs/op
 BenchmarkSimpleLRUGet-20                        146248706                8.199 ns/op           0 B/op          0 allocs/op
 BenchmarkFreeCacheGet-20                        58229779                19.56 ns/op            0 B/op          0 allocs/op
+BenchmarkRistrettoGet-20                        31157457                35.37 ns/op           10 B/op          1 allocs/op
 BenchmarkMapGet-20                              195464706                6.031 ns/op           0 B/op          0 allocs/op
 ```
 

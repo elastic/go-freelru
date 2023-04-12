@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/coocood/freecache"
+	"github.com/dgraph-io/ristretto"
 	"github.com/elastic/go-freelru"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
@@ -95,6 +96,30 @@ func BenchmarkFreeCacheGet(b *testing.B) {
 			val = binary.BigEndian.Uint64(bv)
 			_ = val
 		}
+	}
+}
+
+func BenchmarkRistrettoGet(b *testing.B) {
+	cache, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: CAP * 10, // number of keys to track frequency of.
+		MaxCost:     CAP,      // maximum cost of cache.
+		BufferItems: 64,       // number of keys per Get buffer.
+	})
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	for i := 0; i < CAP; i++ {
+		// nolint:gosec
+		val := int(rand.Int63())
+		cache.Set(i, val, 1)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, _ = cache.Get(i)
 	}
 }
 
