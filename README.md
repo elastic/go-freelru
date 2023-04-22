@@ -119,17 +119,42 @@ BenchmarkMapGet-20                              195464706                6.031 n
 ```
 
 ## Example usage
-```
-    lru, _ := New[int, uint64](8192, nil, hashInt)
-    key := 123
-    val := uint64(999)
-    lru.Add(key, val)
 
-    if v, ok := lru.Get(key); ok {
-        fmt.Printf("found %v=%v\n", key, v)
-    }
+```go
+package main
 
+import (
+	"fmt"
+
+	"github.com/cespare/xxhash/v2"
+
+	"github.com/elastic/go-freelru"
+)
+
+// more hash function in https://github.com/elastic/go-freelru/blob/main/bench/hash.go
+func hashStringXXHASH(s string) uint32 {
+	return uint32(xxhash.Sum64String(s))
+}
+
+func main() {
+	lru, err := freelru.New[string, uint64](8192, hashStringXXHASH)
+	if err != nil {
+		panic(err)
+	}
+
+	key := "go-freelru"
+	val := uint64(999)
+	lru.Add(key, val)
+
+	if v, ok := lru.Get(key); ok {
+		fmt.Printf("found %v=%v\n", key, v)
+	}
+
+	// Output:
+	// found go-freelru=999
+}
 ```
+
 The function `hashInt(int) uint32` will be called to calculate a hash value of the key.
 Please take a look into `bench/` directory to find examples of hash functions.
 Here you will also find an amd64 version of the Go internal hash function, which uses AESENC features
