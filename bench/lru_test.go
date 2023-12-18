@@ -25,6 +25,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/coocood/freecache"
+	"github.com/dgraph-io/ristretto"
 	"github.com/elastic/go-freelru"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/zeebo/xxh3"
@@ -314,7 +315,6 @@ func BenchmarkFreeCacheAdd_string_uint64(b *testing.B) {
 		bv := [8]byte{}
 		binary.BigEndian.PutUint64(bv[:], val)
 		_ = lru.Set([]byte(keys[i]), bv[:], 60)
-		//		lru.Del([]byte(keys[i]))
 	}
 }
 
@@ -328,6 +328,88 @@ func BenchmarkFreeCacheAdd_int_string(b *testing.B) {
 		bk := [8]byte{}
 		binary.BigEndian.PutUint64(bk[:], uint64(i))
 		_ = lru.Set(bk[:], []byte(testString), 60)
+	}
+}
+
+func runRistrettoLRUAddInt[V any](b *testing.B) {
+	cache, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: CAP * 10, // number of keys to track frequency of.
+		MaxCost:     CAP,      // maximum cost of cache.
+		BufferItems: 64,       // number of keys per Get buffer.
+	})
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val V
+	for i := 0; i < b.N; i++ {
+		cache.Set(i, val, 1)
+	}
+}
+
+func BenchmarkRistrettoAdd_int_int(b *testing.B) {
+	runRistrettoLRUAddInt[int](b)
+}
+
+func BenchmarkRistrettoAdd_int128_int(b *testing.B) {
+	runRistrettoLRUAddInt[int128](b)
+}
+
+func BenchmarkRistrettoAdd_uint32_uint64(b *testing.B) {
+	cache, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: CAP * 10, // number of keys to track frequency of.
+		MaxCost:     CAP,      // maximum cost of cache.
+		BufferItems: 64,       // number of keys per Get buffer.
+	})
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val uint64
+	for i := 0; i < b.N; i++ {
+		cache.Set(uint32(i), val, 1)
+	}
+}
+
+func BenchmarkRistrettoAdd_string_uint64(b *testing.B) {
+	cache, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: CAP * 10, // number of keys to track frequency of.
+		MaxCost:     CAP,      // maximum cost of cache.
+		BufferItems: 64,       // number of keys per Get buffer.
+	})
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	keys := makeStrings(b.N)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val uint64
+	for i := 0; i < b.N; i++ {
+		cache.Set(keys[i], val, 1)
+	}
+}
+
+func BenchmarkRistrettoAdd_int_string(b *testing.B) {
+	cache, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: CAP * 10, // number of keys to track frequency of.
+		MaxCost:     CAP,      // maximum cost of cache.
+		BufferItems: 64,       // number of keys per Get buffer.
+	})
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		cache.Set(i, testString, 1)
 	}
 }
 
