@@ -64,7 +64,7 @@ The key and value types are part of the benchmark name, e.g. `int_int` means key
 
 To run the benchmarks
 ```
-go test -count 1 -bench . -run XXX
+make benchmarks
 ```
 
 ### Adding objects
