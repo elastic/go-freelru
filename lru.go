@@ -308,9 +308,9 @@ func (lru *LRU[K, V]) Len() int {
 	return int(lru.len)
 }
 
-// AddWithExpire adds a key:value to the cache with a lifetime.
+// AddWithLifetime adds a key:value to the cache with a lifetime.
 // Returns true, true if key was updated and eviction occurred.
-func (lru *LRU[K, V]) AddWithExpire(key K, value V, lifetime time.Duration) (evicted bool) {
+func (lru *LRU[K, V]) AddWithLifetime(key K, value V, lifetime time.Duration) (evicted bool) {
 	bucketPos, startPos := lru.keyToPos(key)
 	if startPos == emptyBucket {
 		pos := lru.len
@@ -391,7 +391,7 @@ func (lru *LRU[K, V]) AddWithExpire(key K, value V, lifetime time.Duration) (evi
 // Add adds a key:value to the cache.
 // Returns true, true if key was updated and eviction occurred.
 func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
-	return lru.AddWithExpire(key, value, lru.lifetime)
+	return lru.AddWithLifetime(key, value, lru.lifetime)
 }
 
 // Get looks up a key's value from the cache, setting it as the most

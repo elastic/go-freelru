@@ -132,7 +132,7 @@ func TestLRU_AddWithExpire(t *testing.T) {
 	// check for LRU default lifetime + element specific override
 	lru := makeLRUWithLifetime(t, 2, nil, 100*time.Millisecond)
 	lru.Add(1, 2)
-	lru.AddWithExpire(3, 4, 200*time.Millisecond)
+	lru.AddWithLifetime(3, 4, 200*time.Millisecond)
 	_, ok := lru.Get(1)
 	FatalIf(t, !ok, "Failed to get")
 	time.Sleep(101 * time.Millisecond)
@@ -146,7 +146,7 @@ func TestLRU_AddWithExpire(t *testing.T) {
 
 	// check for element specific lifetime
 	lru = makeLRU(t, 1, nil)
-	lru.AddWithExpire(1, 2, 100*time.Millisecond)
+	lru.AddWithLifetime(1, 2, 100*time.Millisecond)
 	_, ok = lru.Get(1)
 	FatalIf(t, !ok, "Failed to get")
 	time.Sleep(101 * time.Millisecond)
