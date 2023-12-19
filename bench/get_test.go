@@ -35,16 +35,14 @@ func BenchmarkFreeLRUGet(b *testing.B) {
 	}
 
 	for i := 0; i < CAP; i++ {
-		// nolint:gosec
-		val := int(rand.Int63())
-		lru.Add(i, val)
+		lru.Add(intKeys[i], intKeys[i])
 	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, _ = lru.Get(i)
+		_, _ = lru.Get(intKey(i))
 	}
 }
 
@@ -55,16 +53,45 @@ func BenchmarkSimpleLRUGet(b *testing.B) {
 	}
 
 	for i := 0; i < CAP; i++ {
-		// nolint:gosec
-		val := int(rand.Int63())
-		lru.Add(i, val)
+		lru.Add(intKeys[i], intKeys[i])
 	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
+	// Test with 50% hit rate.
 	for i := 0; i < b.N; i++ {
-		_, _ = lru.Get(i)
+		_, _ = lru.Get(intKey(i))
+	}
+}
+
+func BenchmarkSyncedGet(b *testing.B) {
+	lru, err := freelru.NewSynced[int, int](CAP, hashIntFNV1A)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	keys := make([]int, CAP)
+	for i := 0; i < CAP; i++ {
+		// nolint:gosec
+		keys[i] = int(rand.Int63())
+	}
+
+	for i := 0; i < CAP; i++ {
+		// nolint:gosec
+		lru.Add(keys[i], i)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	// Test with 50% hit rate.
+	for i := 0; i < b.N; i++ {
+		if i&1 == 0 {
+			_, _ = lru.Get(keys[i&(CAP-1)])
+		} else {
+			_, _ = lru.Get(i)
+		}
 	}
 }
 
@@ -76,25 +103,23 @@ func BenchmarkFreeCacheGet(b *testing.B) {
 
 	for i := 0; i < CAP; i++ {
 		// nolint:gosec
-		val := int(rand.Int63())
+		val := intKeys[i]
 		bv := [8]byte{}
 		binary.BigEndian.PutUint64(bv[:], uint64(val))
 		bk := [8]byte{}
-		binary.BigEndian.PutUint64(bk[:], uint64(i))
+		binary.BigEndian.PutUint64(bk[:], uint64(val))
 		_ = lru.Set(bk[:], bv[:], 60)
 	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	var val uint64
 	for i := 0; i < b.N; i++ {
 		bk := [8]byte{}
-		binary.BigEndian.PutUint64(bk[:], uint64(i))
+		binary.BigEndian.PutUint64(bk[:], uint64(intKey(i)))
 		bv, err := lru.Get(bk[:])
 		if err == nil {
-			val = binary.BigEndian.Uint64(bv)
-			_ = val
+			_ = binary.BigEndian.Uint64(bv)
 		}
 	}
 }
@@ -110,16 +135,14 @@ func BenchmarkRistrettoGet(b *testing.B) {
 	}
 
 	for i := 0; i < CAP; i++ {
-		// nolint:gosec
-		val := int(rand.Int63())
-		cache.Set(i, val, 1)
+		cache.Set(intKeys[i], intKeys[i], 1)
 	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, _ = cache.Get(i)
+		_, _ = cache.Get(intKey(i))
 	}
 }
 
@@ -127,15 +150,33 @@ func BenchmarkMapGet(b *testing.B) {
 	cache := make(map[int]int, CAP)
 
 	for i := 0; i < CAP; i++ {
-		// nolint:gosec
-		val := int(rand.Int63())
-		cache[i] = val
+		cache[i] = intKeys[i]
 	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_ = cache[i]
+		_ = cache[intKey(i)]
 	}
+}
+
+// Use the same keys for all benchmarks.
+var intKeys = make([]int, CAP)
+
+func init() {
+	for i := 0; i < len(intKeys); i++ {
+		// nolint:gosec
+		intKeys[i] = int(rand.Int63())
+	}
+}
+
+func intKey(i int) int {
+	// Test with 50% hit rate.
+	if i&1 == 0 {
+		return intKeys[i&(CAP-1)]
+	}
+
+	// For simplicity, we assume 'i' to not be in the cache.
+	return i
 }

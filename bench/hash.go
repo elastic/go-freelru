@@ -71,6 +71,20 @@ func hashIntFNV1A(i int) uint32 {
 	return h
 }
 
+func hashIntFNV1AUnsafe(i int) uint32 {
+	b := unsafe.Slice((*byte)(unsafe.Pointer(&i)), 8)
+	h := Init32
+	h = (h ^ uint32(b[0])) * prime32
+	h = (h ^ uint32(b[1])) * prime32
+	h = (h ^ uint32(b[2])) * prime32
+	h = (h ^ uint32(b[3])) * prime32
+	h = (h ^ uint32(b[4])) * prime32
+	h = (h ^ uint32(b[5])) * prime32
+	h = (h ^ uint32(b[6])) * prime32
+	h = (h ^ uint32(b[7])) * prime32
+	return h
+}
+
 func hashIntAESENC(i int) uint32 {
 	return uint32(inthash(i, 0x1234bacd9876feda))
 }
