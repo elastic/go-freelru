@@ -192,7 +192,8 @@ func TestLRUMatch(t *testing.T) {
 			lruVal, ok := lru.Peek(key)
 			FatalIf(t, !ok, "Failed to find key %d in LRU", key)
 
-			FatalIf(t, backupVal != lruVal, "Unexpected mismatch of values: %#v %#v", backupVal, lruVal)
+			FatalIf(t, backupVal != lruVal, "Unexpected mismatch of values: %#v %#v",
+				backupVal, lruVal)
 		}
 
 		for k, v := range backup {
@@ -220,8 +221,8 @@ const count = 1000
 // GOGC=off go test -memprofile=mem.out -test.memprofilerate=1 -count 1 -run MapAdd
 // go tool pprof mem.out
 // (then check the top10)
-func TestMapAdd(t *testing.T) {
-	cache := make(map[uint64]int, count) // b.N to avoid reallocations
+func TestMapAdd(_ *testing.T) {
+	cache := make(map[uint64]int, count)
 
 	var val int
 	for i := uint64(0); i < count; i++ {
@@ -232,7 +233,7 @@ func TestMapAdd(t *testing.T) {
 // GOGC=off go test -memprofile=mem.out -test.memprofilerate=1 -count 1 -run FreeLRUAdd
 // go tool pprof mem.out
 // (then check the top10)
-func TestFreeLRUAdd(t *testing.T) {
+func TestFreeLRUAdd(_ *testing.T) {
 	cache, _ := New[uint64, int](count, hashUint64)
 
 	var val int
