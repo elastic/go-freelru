@@ -40,10 +40,7 @@ func runFreeLRUAddInt[V any](b *testing.B) {
 		b.Fatalf("err: %v", err)
 	}
 
-	keys := make([]int, 0, b.N)
-	for i := 0; i < b.N; i++ {
-		keys = append(keys, rand.Int()) //nolint:gosec
-	}
+	keys := makeInts(b.N)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -51,21 +48,6 @@ func runFreeLRUAddInt[V any](b *testing.B) {
 	var val V
 	for i := 0; i < b.N; i++ {
 		lru.Add(keys[i], val)
-	}
-}
-
-func runFreeLRUAddIntAscending[V any](b *testing.B) {
-	lru, err := freelru.New[int, V](CAP, hashIntAESENC)
-	if err != nil {
-		b.Fatalf("err: %v", err)
-	}
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	var val V
-	for i := 0; i < b.N; i++ {
-		lru.Add(i, val)
 	}
 }
 
@@ -77,26 +59,20 @@ func BenchmarkFreeLRUAdd_int_int128(b *testing.B) {
 	runFreeLRUAddInt[int128](b)
 }
 
-func BenchmarkFreeLRUAdd_int_int_Ascending(b *testing.B) {
-	runFreeLRUAddIntAscending[int](b)
-}
-
-func BenchmarkFreeLRUAdd_int_int128_Ascending(b *testing.B) {
-	runFreeLRUAddIntAscending[int128](b)
-}
-
 func BenchmarkFreeLRUAdd_uint32_uint64(b *testing.B) {
 	lru, err := freelru.New[uint32, uint64](CAP, hashUInt32)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
 
+	keys := makeUInt32s(b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	var val uint64
 	for i := 0; i < b.N; i++ {
-		lru.Add(uint32(i), val)
+		lru.Add(keys[i], val)
 	}
 }
 
@@ -123,11 +99,13 @@ func BenchmarkFreeLRUAdd_int_string(b *testing.B) {
 		b.Fatalf("err: %v", err)
 	}
 
+	keys := makeInts(b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		lru.Add(i, testString)
+		lru.Add(keys[i], testString)
 	}
 }
 
@@ -137,10 +115,7 @@ func runSyncedFreeLRUAddInt[V any](b *testing.B) {
 		b.Fatalf("err: %v", err)
 	}
 
-	keys := make([]int, 0, b.N)
-	for i := 0; i < b.N; i++ {
-		keys = append(keys, rand.Int()) //nolint:gosec
-	}
+	keys := makeInts(b.N)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -148,21 +123,6 @@ func runSyncedFreeLRUAddInt[V any](b *testing.B) {
 	var val V
 	for i := 0; i < b.N; i++ {
 		lru.Add(keys[i], val)
-	}
-}
-
-func runSyncedFreeLRUAddIntAscending[V any](b *testing.B) {
-	lru, err := freelru.NewSynced[int, V](CAP, hashIntAESENC)
-	if err != nil {
-		b.Fatalf("err: %v", err)
-	}
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	var val V
-	for i := 0; i < b.N; i++ {
-		lru.Add(i, val)
 	}
 }
 
@@ -174,26 +134,20 @@ func BenchmarkSyncedFreeLRUAdd_int_int128(b *testing.B) {
 	runSyncedFreeLRUAddInt[int128](b)
 }
 
-func BenchmarkSyncedFreeLRUAdd_int_int_Ascending(b *testing.B) {
-	runSyncedFreeLRUAddIntAscending[int](b)
-}
-
-func BenchmarkSyncedFreeLRUAdd_int_int128_Ascending(b *testing.B) {
-	runSyncedFreeLRUAddIntAscending[int128](b)
-}
-
 func BenchmarkSyncedFreeLRUAdd_uint32_uint64(b *testing.B) {
 	lru, err := freelru.NewSynced[uint32, uint64](CAP, hashUInt32)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
 
+	keys := makeUInt32s(b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	var val uint64
 	for i := 0; i < b.N; i++ {
-		lru.Add(uint32(i), val)
+		lru.Add(keys[i], val)
 	}
 }
 
@@ -220,11 +174,13 @@ func BenchmarkSyncedFreeLRUAdd_int_string(b *testing.B) {
 		b.Fatalf("err: %v", err)
 	}
 
+	keys := makeInts(b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		lru.Add(i, testString)
+		lru.Add(keys[i], testString)
 	}
 }
 
@@ -234,12 +190,14 @@ func runSimpleLRUAddInt[V any](b *testing.B) {
 		b.Fatalf("err: %v", err)
 	}
 
+	keys := makeInts(b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	var val V
 	for i := 0; i < b.N; i++ {
-		lru.Add(i, val)
+		lru.Add(keys[i], val)
 	}
 }
 
@@ -257,12 +215,14 @@ func BenchmarkSimpleLRUAdd_uint32_uint64(b *testing.B) {
 		b.Fatalf("err: %v", err)
 	}
 
+	keys := makeUInt32s(b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	var val uint64
 	for i := 0; i < b.N; i++ {
-		lru.Add(uint32(i), val)
+		lru.Add(keys[i], val)
 	}
 }
 
@@ -289,16 +249,20 @@ func BenchmarkSimpleLRUAdd_int_string(b *testing.B) {
 		b.Fatalf("err: %v", err)
 	}
 
+	keys := makeInts(b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		lru.Add(i, testString)
+		lru.Add(keys[i], testString)
 	}
 }
 
 func BenchmarkFreeCacheAdd_int_int(b *testing.B) {
 	lru := freecache.NewCache(CAP)
+
+	keys := makeInts(b.N)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -308,13 +272,15 @@ func BenchmarkFreeCacheAdd_int_int(b *testing.B) {
 		bv := [8]byte{}
 		binary.BigEndian.PutUint64(bv[:], val)
 		bk := [8]byte{}
-		binary.BigEndian.PutUint64(bk[:], uint64(i))
+		binary.BigEndian.PutUint64(bk[:], uint64(keys[i]))
 		_ = lru.Set(bk[:], bv[:], 60)
 	}
 }
 
 func BenchmarkFreeCacheAdd_int_int128(b *testing.B) {
 	lru := freecache.NewCache(CAP)
+
+	keys := makeInts(b.N)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -325,13 +291,15 @@ func BenchmarkFreeCacheAdd_int_int128(b *testing.B) {
 		binary.BigEndian.PutUint64(bv[:], val.hi)
 		binary.BigEndian.PutUint64(bv[8:], val.lo)
 		bk := [8]byte{}
-		binary.BigEndian.PutUint64(bk[:], uint64(i))
+		binary.BigEndian.PutUint64(bk[:], uint64(keys[i]))
 		_ = lru.Set(bk[:], bv[:], 60)
 	}
 }
 
 func BenchmarkFreeCacheAdd_uint32_uint64(b *testing.B) {
 	lru := freecache.NewCache(CAP)
+
+	keys := makeUInt32s(b.N)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -341,7 +309,7 @@ func BenchmarkFreeCacheAdd_uint32_uint64(b *testing.B) {
 		bv := [8]byte{}
 		binary.BigEndian.PutUint64(bv[:], val)
 		bk := [8]byte{}
-		binary.BigEndian.PutUint32(bk[:], uint32(i))
+		binary.BigEndian.PutUint32(bk[:], keys[i])
 		_ = lru.Set(bk[:], bv[:], 60)
 	}
 }
@@ -365,12 +333,14 @@ func BenchmarkFreeCacheAdd_string_uint64(b *testing.B) {
 func BenchmarkFreeCacheAdd_int_string(b *testing.B) {
 	lru := freecache.NewCache(CAP)
 
+	keys := makeInts(b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		bk := [8]byte{}
-		binary.BigEndian.PutUint64(bk[:], uint64(i))
+		binary.BigEndian.PutUint64(bk[:], uint64(keys[i]))
 		_ = lru.Set(bk[:], []byte(testString), 60)
 	}
 }
@@ -385,12 +355,14 @@ func runRistrettoLRUAddInt[V any](b *testing.B) {
 		b.Fatalf("err: %v", err)
 	}
 
+	keys := makeInts(b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	var val V
 	for i := 0; i < b.N; i++ {
-		cache.Set(i, val, 1)
+		cache.Set(keys[i], val, 1)
 	}
 }
 
@@ -412,12 +384,14 @@ func BenchmarkRistrettoAdd_uint32_uint64(b *testing.B) {
 		b.Fatalf("err: %v", err)
 	}
 
+	keys := makeUInt32s(b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	var val uint64
 	for i := 0; i < b.N; i++ {
-		cache.Set(uint32(i), val, 1)
+		cache.Set(keys[i], val, 1)
 	}
 }
 
@@ -452,8 +426,13 @@ func BenchmarkRistrettoAdd_int_string(b *testing.B) {
 		b.Fatalf("err: %v", err)
 	}
 
+	keys := makeInts(b.N)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
-		cache.Set(i, testString, 1)
+		cache.Set(keys[i], testString, 1)
 	}
 }
 
@@ -473,6 +452,8 @@ func newBigCache() *bigcache.BigCache {
 func BenchmarkBigCacheAdd_int_int(b *testing.B) {
 	lru := newBigCache()
 
+	keys := makeInts(b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
@@ -483,13 +464,15 @@ func BenchmarkBigCacheAdd_int_int(b *testing.B) {
 		bv := [8]byte{}
 		binary.BigEndian.PutUint64(bv[:], val)
 		bk := [8]byte{}
-		binary.BigEndian.PutUint64(bk[:], uint64(i))
+		binary.BigEndian.PutUint64(bk[:], uint64(keys[i]))
 		_ = lru.Set(string(bk[:]), bv[:])
 	}
 }
 
 func BenchmarkBigCacheAdd_int_int128(b *testing.B) {
 	lru := newBigCache()
+
+	keys := makeInts(b.N)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -502,12 +485,14 @@ func BenchmarkBigCacheAdd_int_int128(b *testing.B) {
 		binary.BigEndian.PutUint64(bv[:], val.hi)
 		binary.BigEndian.PutUint64(bv[8:], val.lo)
 		bk := [8]byte{}
-		binary.BigEndian.PutUint64(bk[:], uint64(i))
+		binary.BigEndian.PutUint64(bk[:], uint64(keys[i]))
 		_ = lru.Set(string(bk[:]), bv[:])
 	}
 }
 func BenchmarkBigCacheAdd_uint32_uint64(b *testing.B) {
 	lru := newBigCache()
+
+	keys := makeUInt32s(b.N)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -517,7 +502,7 @@ func BenchmarkBigCacheAdd_uint32_uint64(b *testing.B) {
 		bv := [8]byte{}
 		binary.BigEndian.PutUint64(bv[:], val)
 		bk := [8]byte{}
-		binary.BigEndian.PutUint32(bk[:], uint32(i))
+		binary.BigEndian.PutUint32(bk[:], keys[i])
 		_ = lru.Set(string(bk[:]), bv[:])
 	}
 }
@@ -541,12 +526,14 @@ func BenchmarkBigCacheAdd_string_uint64(b *testing.B) {
 func BenchmarkBigCacheAdd_int_string(b *testing.B) {
 	lru := newBigCache()
 
+	keys := makeInts(b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		bk := [8]byte{}
-		binary.BigEndian.PutUint64(bk[:], uint64(i))
+		binary.BigEndian.PutUint64(bk[:], uint64(keys[i]))
 		_ = lru.Set(string(bk[:]), []byte(testString))
 	}
 }
@@ -554,12 +541,14 @@ func BenchmarkBigCacheAdd_int_string(b *testing.B) {
 func runMapAddInt[V any](b *testing.B) {
 	cache := make(map[int]V, b.N) // b.N to avoid reallocations
 
+	keys := makeInts(b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	var val V
 	for i := 0; i < b.N; i++ {
-		cache[i] = val
+		cache[keys[i]] = val
 	}
 }
 
@@ -569,6 +558,20 @@ func BenchmarkMapAdd_int_int(b *testing.B) {
 
 func BenchmarkMapAdd_int_int128(b *testing.B) {
 	runMapAddInt[int128](b)
+}
+
+func BenchmarkMapAdd_uint32_uint64(b *testing.B) {
+	cache := make(map[uint32]uint64, b.N) // b.N to avoid reallocations
+
+	keys := makeUInt32s(b.N)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val uint64
+	for i := 0; i < b.N; i++ {
+		cache[keys[i]] = val
+	}
 }
 
 func BenchmarkMapAdd_string_uint64(b *testing.B) {
@@ -582,6 +585,19 @@ func BenchmarkMapAdd_string_uint64(b *testing.B) {
 	var val uint64
 	for i := 0; i < b.N; i++ {
 		cache[keys[i]] = val
+	}
+}
+
+func BenchmarkMapAdd_int_string(b *testing.B) {
+	cache := make(map[int]string, b.N) // b.N to avoid reallocations
+
+	keys := makeInts(b.N)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		cache[keys[i]] = testString
 	}
 }
 
@@ -603,6 +619,22 @@ func makeStrings(n int) []string {
 	s := make([]string, 0, n)
 	for i := 0; i < n; i++ {
 		s = append(s, "heyja"+strconv.Itoa(i))
+	}
+	return s
+}
+
+func makeInts(n int) []int {
+	s := make([]int, 0, n)
+	for i := 0; i < n; i++ {
+		s = append(s, rand.Int()) //nolint:gosec
+	}
+	return s
+}
+
+func makeUInt32s(n int) []uint32 {
+	s := make([]uint32, 0, n)
+	for i := 0; i < n; i++ {
+		s = append(s, uint32(rand.Int())) //nolint:gosec
 	}
 	return s
 }
