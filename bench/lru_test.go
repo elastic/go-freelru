@@ -18,11 +18,14 @@
 package benchmarks
 
 import (
+	"context"
 	"encoding/binary"
 	"math/rand"
 	"strconv"
 	"testing"
+	"time"
 
+	"github.com/allegro/bigcache/v3"
 	"github.com/coocood/freecache"
 	"github.com/dgraph-io/ristretto"
 	"github.com/elastic/go-freelru"
@@ -39,7 +42,7 @@ func runFreeLRUAddInt[V any](b *testing.B) {
 
 	keys := make([]int, 0, b.N)
 	for i := 0; i < b.N; i++ {
-		keys = append(keys, rand.Int())
+		keys = append(keys, rand.Int()) //nolint:gosec
 	}
 
 	b.ReportAllocs()
@@ -116,6 +119,103 @@ func BenchmarkFreeLRUAdd_string_uint64(b *testing.B) {
 
 func BenchmarkFreeLRUAdd_int_string(b *testing.B) {
 	lru, err := freelru.New[int, string](CAP, hashIntFNV1A)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		lru.Add(i, testString)
+	}
+}
+
+func runSyncedFreeLRUAddInt[V any](b *testing.B) {
+	lru, err := freelru.NewSynced[int, V](CAP, hashIntAESENC)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	keys := make([]int, 0, b.N)
+	for i := 0; i < b.N; i++ {
+		keys = append(keys, rand.Int()) //nolint:gosec
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val V
+	for i := 0; i < b.N; i++ {
+		lru.Add(keys[i], val)
+	}
+}
+
+func runSyncedFreeLRUAddIntAscending[V any](b *testing.B) {
+	lru, err := freelru.NewSynced[int, V](CAP, hashIntAESENC)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val V
+	for i := 0; i < b.N; i++ {
+		lru.Add(i, val)
+	}
+}
+
+func BenchmarkSyncedFreeLRUAdd_int_int(b *testing.B) {
+	runSyncedFreeLRUAddInt[int](b)
+}
+
+func BenchmarkSyncedFreeLRUAdd_int_int128(b *testing.B) {
+	runSyncedFreeLRUAddInt[int128](b)
+}
+
+func BenchmarkSyncedFreeLRUAdd_int_int_Ascending(b *testing.B) {
+	runSyncedFreeLRUAddIntAscending[int](b)
+}
+
+func BenchmarkSyncedFreeLRUAdd_int_int128_Ascending(b *testing.B) {
+	runSyncedFreeLRUAddIntAscending[int128](b)
+}
+
+func BenchmarkSyncedFreeLRUAdd_uint32_uint64(b *testing.B) {
+	lru, err := freelru.NewSynced[uint32, uint64](CAP, hashUInt32)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val uint64
+	for i := 0; i < b.N; i++ {
+		lru.Add(uint32(i), val)
+	}
+}
+
+func BenchmarkSyncedFreeLRUAdd_string_uint64(b *testing.B) {
+	lru, err := freelru.NewSynced[string, uint64](CAP, hashStringAESENC)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	keys := makeStrings(b.N)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val uint64
+	for i := 0; i < b.N; i++ {
+		lru.Add(keys[i], val)
+	}
+}
+
+func BenchmarkSyncedFreeLRUAdd_int_string(b *testing.B) {
+	lru, err := freelru.NewSynced[int, string](CAP, hashIntFNV1A)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
@@ -357,6 +457,100 @@ func BenchmarkRistrettoAdd_int_string(b *testing.B) {
 	}
 }
 
+func newBigCache() *bigcache.BigCache {
+	// These values have been taken from
+	//   https://github.com/allegro/bigcache-bench/blob/master/caches_bench_test.go .
+	lru, _ := bigcache.New(context.Background(), bigcache.Config{
+		Shards:             256,
+		LifeWindow:         10 * time.Minute,
+		MaxEntriesInWindow: 10000,
+		MaxEntrySize:       256,
+		Verbose:            false,
+	})
+	return lru
+}
+
+func BenchmarkBigCacheAdd_int_int(b *testing.B) {
+	lru := newBigCache()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val uint64
+	for i := 0; i < b.N; i++ {
+		// Converting key to string and value to []byte counts into the benchmark because
+		// the conversion is a required extra step unique to BigCache.
+		bv := [8]byte{}
+		binary.BigEndian.PutUint64(bv[:], val)
+		bk := [8]byte{}
+		binary.BigEndian.PutUint64(bk[:], uint64(i))
+		_ = lru.Set(string(bk[:]), bv[:])
+	}
+}
+
+func BenchmarkBigCacheAdd_int_int128(b *testing.B) {
+	lru := newBigCache()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val int128
+	for i := 0; i < b.N; i++ {
+		// Converting key to string and value to []byte counts into the benchmark because
+		// the conversion is a required extra step unique to BigCache.
+		bv := [16]byte{}
+		binary.BigEndian.PutUint64(bv[:], val.hi)
+		binary.BigEndian.PutUint64(bv[8:], val.lo)
+		bk := [8]byte{}
+		binary.BigEndian.PutUint64(bk[:], uint64(i))
+		_ = lru.Set(string(bk[:]), bv[:])
+	}
+}
+func BenchmarkBigCacheAdd_uint32_uint64(b *testing.B) {
+	lru := newBigCache()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val uint64
+	for i := 0; i < b.N; i++ {
+		bv := [8]byte{}
+		binary.BigEndian.PutUint64(bv[:], val)
+		bk := [8]byte{}
+		binary.BigEndian.PutUint32(bk[:], uint32(i))
+		_ = lru.Set(string(bk[:]), bv[:])
+	}
+}
+
+func BenchmarkBigCacheAdd_string_uint64(b *testing.B) {
+	lru := newBigCache()
+
+	keys := makeStrings(b.N)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val uint64
+	for i := 0; i < b.N; i++ {
+		bv := [8]byte{}
+		binary.BigEndian.PutUint64(bv[:], val)
+		_ = lru.Set(keys[i], bv[:])
+	}
+}
+
+func BenchmarkBigCacheAdd_int_string(b *testing.B) {
+	lru := newBigCache()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		bk := [8]byte{}
+		binary.BigEndian.PutUint64(bk[:], uint64(i))
+		_ = lru.Set(string(bk[:]), []byte(testString))
+	}
+}
+
 func runMapAddInt[V any](b *testing.B) {
 	cache := make(map[int]V, b.N) // b.N to avoid reallocations
 
@@ -396,7 +590,7 @@ func BenchmarkMapAdd_string_uint64(b *testing.B) {
 // GOGC=off go test -memprofile=mem.out -test.memprofilerate=1 -count 1 -run SimpleLRUAdd
 // go tool pprof mem.out
 // (then check the top10)
-func TestSimpleLRUAdd(t *testing.T) {
+func TestSimpleLRUAdd(_ *testing.T) {
 	cache, _ := simplelru.NewLRU[uint64, int](CAP, nil)
 
 	var val int
