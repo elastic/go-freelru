@@ -8,6 +8,18 @@ import (
 	"github.com/zeebo/xxh3"
 )
 
+func BenchmarkHashInt_MapHash(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = hashIntMapHash(i)
+	}
+}
+
+func BenchmarkHashInt_MapHasher(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = hashIntMapHasher(i)
+	}
+}
+
 func BenchmarkHashInt_FNV1A(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = hashIntFNV1A(i)
@@ -43,6 +55,18 @@ func BenchmarkHashInt_XXH3HASH(b *testing.B) {
 }
 
 var testString = "test123 dlfksdlföls sdfsdlskdg sgksgjdgs gdkfggk"
+
+func BenchmarkHashString_MapHash(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = hashStringMapHash(testString)
+	}
+}
+
+func BenchmarkHashString_MapHasher(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = hashStringMapHasher(testString)
+	}
+}
 
 func BenchmarkHashString_FNV1A(b *testing.B) {
 	for i := 0; i < b.N; i++ {

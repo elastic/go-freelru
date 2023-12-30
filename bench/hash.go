@@ -19,9 +19,11 @@ package benchmarks
 
 import (
 	"encoding/binary"
+	"hash/maphash"
 	"unsafe"
 
 	"github.com/cespare/xxhash/v2"
+	hackymaphash "github.com/dolthub/maphash"
 	"github.com/zeebo/xxh3"
 )
 
@@ -54,6 +56,32 @@ func init() {
 		aeskeysched[i] = byte(i + 1)
 	}
 	aeskeysched[hashRandomBytes-1] = 0xFF
+}
+
+var stdMapHash maphash.Hash
+
+func hashIntMapHash(i int) uint32 {
+	b := unsafe.Slice((*byte)(unsafe.Pointer(&i)), 8)
+	stdMapHash.Reset()
+	stdMapHash.Write(b)
+	return uint32(stdMapHash.Sum64())
+}
+
+func hashStringMapHash(s string) uint32 {
+	stdMapHash.WriteString(s)
+	return uint32(stdMapHash.Sum64())
+}
+
+var hackyIntMapHasher = hackymaphash.NewHasher[int]()
+
+func hashIntMapHasher(i int) uint32 {
+	return uint32(hackyIntMapHasher.Hash(i))
+}
+
+var hackyStringMapHasher = hackymaphash.NewHasher[string]()
+
+func hashStringMapHasher(s string) uint32 {
+	return uint32(hackyStringMapHasher.Hash(s))
 }
 
 func hashIntFNV1A(i int) uint32 {
@@ -136,7 +164,7 @@ func hashBytes(b []byte) uint32 {
 }
 
 func hashStringFNV1A(s string) uint32 {
-	// May be faster than hashBytes([]byte(s)) by avoiding a copy.
+	// ~2x faster than hashBytes([]byte(s)) by avoiding a copy.
 	b := *(*[]byte)(unsafe.Pointer(&sliceHeader{s, len(s)}))
 	return hashBytes(b)
 }
