@@ -24,6 +24,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	hackymaphash "github.com/dolthub/maphash"
+	"github.com/elastic/go-freelru"
 	"github.com/zeebo/xxh3"
 )
 
@@ -115,6 +116,17 @@ func hashIntFNV1AUnsafe(i int) uint32 {
 
 func hashIntAESENC(i int) uint32 {
 	return uint32(inthash(i, 0x1234bacd9876feda))
+}
+
+func getHashAESENC[K comparable]() freelru.HashKeyCallback[K] {
+	var k K
+	switch any(k).(type) {
+	case string:
+		return any((freelru.HashKeyCallback[string])(hashStringAESENC)).(freelru.HashKeyCallback[K])
+	case int:
+		return any((freelru.HashKeyCallback[int])(hashIntAESENC)).(freelru.HashKeyCallback[K])
+	}
+	return nil
 }
 
 func hashUInt32(i uint32) uint32 {

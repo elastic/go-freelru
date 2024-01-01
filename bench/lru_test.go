@@ -28,8 +28,9 @@ import (
 	"github.com/allegro/bigcache/v3"
 	"github.com/coocood/freecache"
 	"github.com/dgraph-io/ristretto"
-	"github.com/elastic/go-freelru"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+
+	"github.com/elastic/go-freelru"
 )
 
 const CAP = 8192
@@ -170,6 +171,81 @@ func BenchmarkSyncedFreeLRUAdd_string_uint64(b *testing.B) {
 
 func BenchmarkSyncedFreeLRUAdd_int_string(b *testing.B) {
 	lru, err := freelru.NewSynced[int, string](CAP, hashIntFNV1A)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	keys := makeInts(b.N)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		lru.Add(keys[i], testString)
+	}
+}
+
+func runShardedFreeLRUAddInt[V any](b *testing.B) {
+	lru, err := freelru.NewSharded[int, V](CAP, hashIntAESENC)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	keys := makeInts(b.N)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val V
+	for i := 0; i < b.N; i++ {
+		lru.Add(keys[i], val)
+	}
+}
+
+func BenchmarkShardedFreeLRUAdd_int_int(b *testing.B) {
+	runShardedFreeLRUAddInt[int](b)
+}
+
+func BenchmarkShardedFreeLRUAdd_int_int128(b *testing.B) {
+	runShardedFreeLRUAddInt[int128](b)
+}
+
+func BenchmarkShardedFreeLRUAdd_uint32_uint64(b *testing.B) {
+	lru, err := freelru.NewSharded[uint32, uint64](CAP, hashUInt32)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	keys := makeUInt32s(b.N)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val uint64
+	for i := 0; i < b.N; i++ {
+		lru.Add(keys[i], val)
+	}
+}
+
+func BenchmarkShardedFreeLRUAdd_string_uint64(b *testing.B) {
+	lru, err := freelru.NewSharded[string, uint64](CAP, hashStringAESENC)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	keys := makeStrings(b.N)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var val uint64
+	for i := 0; i < b.N; i++ {
+		lru.Add(keys[i], val)
+	}
+}
+
+func BenchmarkShardedFreeLRUAdd_int_string(b *testing.B) {
+	lru, err := freelru.NewSharded[int, string](CAP, hashIntFNV1A)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
