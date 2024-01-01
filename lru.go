@@ -75,7 +75,7 @@ type LRU[K comparable, V any] struct {
 	len  uint32 // current number of elements in the cache
 	cap  uint32 // max number of elements in the cache
 	size uint32 // size of the element array (X% larger than cap)
-	mask uint32 // bitmask to avoid the costly idiv in keyToPos() if size is a 2^n value
+	mask uint32 // bitmask to avoid the costly idiv in hashToPos() if size is a 2^n value
 
 	collisions uint64
 	inserts    uint64
@@ -123,7 +123,7 @@ func NewWithSize[K comparable, V any](cap, size uint32, hash HashKeyCallback[K])
 
 	lru := &LRU[K, V]{
 		cap:      cap,
-		size:     cap,
+		size:     size,
 		hash:     hash,
 		buckets:  make([]uint32, size),
 		elements: make([]element[K, V], size),
@@ -142,17 +142,17 @@ func NewWithSize[K comparable, V any](cap, size uint32, hash HashKeyCallback[K])
 	return lru, nil
 }
 
-// keyToPos converts a key into a position in the elements array.
-func (lru *LRU[K, V]) keyToBucketPos(key K) uint32 {
+// hashToBucketPos converts a hash value into a position in the elements array.
+func (lru *LRU[K, V]) hashToBucketPos(hash uint32) uint32 {
 	if lru.mask != 0 {
-		return lru.hash(key) & lru.mask
+		return hash & lru.mask
 	}
-	return lru.hash(key) % lru.size
+	return hash % lru.size
 }
 
-// keyToPos converts a key into a position in the elements array.
-func (lru *LRU[K, V]) keyToPos(key K) (bucketPos, elemPos uint32) {
-	bucketPos = lru.keyToBucketPos(key)
+// hashToPos converts a key into a position in the elements array.
+func (lru *LRU[K, V]) hashToPos(hash uint32) (bucketPos, elemPos uint32) {
+	bucketPos = lru.hashToBucketPos(hash)
 	elemPos = lru.buckets[bucketPos]
 	return
 }
@@ -279,8 +279,8 @@ func (lru *LRU[K, V]) clearKeyAndValue(pos uint32) {
 	lru.elements[pos].value = lru.emptyValue
 }
 
-func (lru *LRU[K, V]) findKey(key K) (uint32, bool) {
-	_, startPos := lru.keyToPos(key)
+func (lru *LRU[K, V]) findKey(hash uint32, key K) (uint32, bool) {
+	_, startPos := lru.hashToPos(hash)
 	if startPos == emptyBucket {
 		return emptyBucket, false
 	}
@@ -311,7 +311,11 @@ func (lru *LRU[K, V]) Len() int {
 // AddWithLifetime adds a key:value to the cache with a lifetime.
 // Returns true, true if key was updated and eviction occurred.
 func (lru *LRU[K, V]) AddWithLifetime(key K, value V, lifetime time.Duration) (evicted bool) {
-	bucketPos, startPos := lru.keyToPos(key)
+	return lru.addWithLifetime(lru.hash(key), key, value, lifetime)
+}
+
+func (lru *LRU[K, V]) addWithLifetime(hash uint32, key K, value V, lifetime time.Duration) (evicted bool) {
+	bucketPos, startPos := lru.hashToPos(hash)
 	if startPos == emptyBucket {
 		pos := lru.len
 
@@ -391,13 +395,21 @@ func (lru *LRU[K, V]) AddWithLifetime(key K, value V, lifetime time.Duration) (e
 // Add adds a key:value to the cache.
 // Returns true, true if key was updated and eviction occurred.
 func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
-	return lru.AddWithLifetime(key, value, lru.lifetime)
+	return lru.addWithLifetime(lru.hash(key), key, value, lru.lifetime)
+}
+
+func (lru *LRU[K, V]) add(hash uint32, key K, value V) (evicted bool) {
+	return lru.addWithLifetime(hash, key, value, lru.lifetime)
 }
 
 // Get looks up a key's value from the cache, setting it as the most
 // recently used item.
 func (lru *LRU[K, V]) Get(key K) (value V, ok bool) {
-	if pos, ok := lru.findKey(key); ok {
+	return lru.get(lru.hash(key), key)
+}
+
+func (lru *LRU[K, V]) get(hash uint32, key K) (value V, ok bool) {
+	if pos, ok := lru.findKey(hash, key); ok {
 		if pos != lru.head {
 			lru.unlinkElement(pos)
 			lru.setHead(pos)
@@ -410,7 +422,11 @@ func (lru *LRU[K, V]) Get(key K) (value V, ok bool) {
 
 // Peek looks up a key's value from the cache, without changing its recent-ness.
 func (lru *LRU[K, V]) Peek(key K) (value V, ok bool) {
-	if pos, ok := lru.findKey(key); ok {
+	return lru.peek(lru.hash(key), key)
+}
+
+func (lru *LRU[K, V]) peek(hash uint32, key K) (value V, ok bool) {
+	if pos, ok := lru.findKey(hash, key); ok {
 		return lru.elements[pos].value, ok
 	}
 
@@ -419,14 +435,23 @@ func (lru *LRU[K, V]) Peek(key K) (value V, ok bool) {
 
 // Contains checks for the existence of a key, without changing its recent-ness.
 func (lru *LRU[K, V]) Contains(key K) (ok bool) {
-	_, ok = lru.Peek(key)
+	_, ok = lru.peek(lru.hash(key), key)
+	return
+}
+
+func (lru *LRU[K, V]) contains(hash uint32, key K) (ok bool) {
+	_, ok = lru.peek(hash, key)
 	return
 }
 
 // Remove removes the key from the cache.
 // The return value indicates whether the key existed or not.
 func (lru *LRU[K, V]) Remove(key K) (removed bool) {
-	if pos, ok := lru.findKey(key); ok {
+	return lru.remove(lru.hash(key), key)
+}
+
+func (lru *LRU[K, V]) remove(hash uint32, key K) (removed bool) {
+	if pos, ok := lru.findKey(hash, key); ok {
 		// Key exists, update element to be the head element.
 		lru.evict(pos)
 		lru.move(pos, lru.len)

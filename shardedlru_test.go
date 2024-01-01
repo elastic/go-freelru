@@ -5,12 +5,12 @@ import (
 	"testing"
 )
 
-// TestSyncedRaceCondition tests that the synced LRU is safe to use concurrently.
+// TestShardedRaceCondition tests that the sharded LRU is safe to use concurrently.
 // Test with 'go test . -race'.
-func TestSyncedRaceCondition(t *testing.T) {
+func TestShardedRaceCondition(t *testing.T) {
 	const CAP = 4
 
-	lru, err := NewSynced[uint64, int](CAP, hashUint64)
+	lru, err := NewSharded[uint64, int](CAP, hashUint64)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
