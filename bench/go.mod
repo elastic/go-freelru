@@ -5,11 +5,14 @@ go 1.18
 require (
 	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/cespare/xxhash/v2 v2.2.0
+	github.com/cloudflare/golibs v0.0.0-20210909181612-21743d7dd02a
 	github.com/coocood/freecache v1.2.3
 	github.com/dgraph-io/ristretto v0.1.1
 	github.com/dolthub/maphash v0.1.0
 	github.com/elastic/go-freelru v0.8.0
 	github.com/hashicorp/golang-lru/v2 v2.0.1
+	github.com/orcaman/concurrent-map/v2 v2.0.1
+	github.com/phuslu/lru v0.0.0-20240102115514-145663889ac0
 	github.com/zeebo/xxh3 v1.0.2
 )
 
@@ -20,3 +23,5 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/sys v0.0.0-20221010170243-090e33056c14 // indirect
 )
+
+replace github.com/elastic/go-freelru => /home/tim/go/src/github.com/elastic/go-freelru

@@ -446,7 +446,7 @@ func BenchmarkRistrettoAdd_int_int(b *testing.B) {
 	runRistrettoLRUAddInt[int](b)
 }
 
-func BenchmarkRistrettoAdd_int128_int(b *testing.B) {
+func BenchmarkRistrettoAdd_int_int128(b *testing.B) {
 	runRistrettoLRUAddInt[int128](b)
 }
 
@@ -565,6 +565,7 @@ func BenchmarkBigCacheAdd_int_int128(b *testing.B) {
 		_ = lru.Set(string(bk[:]), bv[:])
 	}
 }
+
 func BenchmarkBigCacheAdd_uint32_uint64(b *testing.B) {
 	lru := newBigCache()
 

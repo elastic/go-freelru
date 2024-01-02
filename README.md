@@ -2,14 +2,113 @@
 
 FreeLRU allows you to cache objects without introducing GC overhead.
 It uses Go generics for simplicity, type-safety and performance over interface types.
-It uses a fast exact LRU algorithm.
 It performs better than other LRU implementations in the Go benchmarks provided.
 The API is simple in order to ease migrations from other LRU implementations.
+The function to calculate hashes from the keys needs to be provided by the caller.
+
+## `LRU`: Single-threaded LRU hashmap
+
+`LRU` is a single-threaded LRU hashmap implementation.
+It uses a fast exact LRU algorithm and has no locking overhead.
+It has been developed for low-GC overhead and type-safety.
+For thread-safety, pick one of `SyncedLRU` or `ShardedLRU` or do locking by yourself.
+
+### Comparison with other single-threaded LRU implementations
+Get (key and value are both of type `int`)
+```
+BenchmarkFreeLRUGet              73456962                15.17 ns/op           0 B/op          0 allocs/op
+BenchmarkSimpleLRUGet            91878808                12.09 ns/op           0 B/op          0 allocs/op
+BenchmarkMapGet                 173823274                6.884 ns/op           0 B/op          0 allocs/op
+```
+Add
+```
+BenchmarkFreeLRUAdd_int_int             39446706                30.04 ns/op            0 B/op          0 allocs/op
+BenchmarkFreeLRUAdd_int_int128          39622722                29.71 ns/op            0 B/op          0 allocs/op
+BenchmarkFreeLRUAdd_uint32_uint64       43750496                26.97 ns/op            0 B/op          0 allocs/op
+BenchmarkFreeLRUAdd_string_uint64       25839464                39.31 ns/op            0 B/op          0 allocs/op
+BenchmarkFreeLRUAdd_int_string          37269870                30.55 ns/op            0 B/op          0 allocs/op
+
+BenchmarkSimpleLRUAdd_int_int           12471030                86.33 ns/op           48 B/op          1 allocs/op
+BenchmarkSimpleLRUAdd_int_int128        11981545                85.70 ns/op           48 B/op          1 allocs/op
+BenchmarkSimpleLRUAdd_uint32_uint64     11506755                87.52 ns/op           48 B/op          1 allocs/op
+BenchmarkSimpleLRUAdd_string_uint64      8674652               142.8 ns/op            49 B/op          1 allocs/op
+BenchmarkSimpleLRUAdd_int_string        12267968                87.77 ns/op           48 B/op          1 allocs/op
+
+BenchmarkMapAdd_int_int                 34951609                48.08 ns/op            0 B/op          0 allocs/op
+BenchmarkMapAdd_int_int128              31082216                47.05 ns/op            0 B/op          0 allocs/op
+BenchmarkMapAdd_uint32_uint64           36277005                48.08 ns/op            0 B/op          0 allocs/op
+BenchmarkMapAdd_string_uint64           29380040                49.37 ns/op            0 B/op          0 allocs/op
+BenchmarkMapAdd_int_string              30325861                47.35 ns/op            0 B/op          0 allocs/op
+```
+
+The comparison with Map is just for reference - Go maps don't implement LRU functionality and thus should
+be significantly faster than LRU implementations.
+
+## `SyncedLRU`: Concurrent LRU hashmap for low concurrency.
+
+`SyncedLRU` is a concurrency-safe LRU hashmap implementation wrapped around `LRU`.
+It is best used in low-concurrency environments where lock contention isn't a thing to worry about.
+It uses an exact LRU algorithm.
+
+## `ShardedLRU`: Concurrent LRU hashmap for high concurrency
+
+`ShardedLRU` is a sharded, concurrency-safe LRU hashmap implementation.
+It is best used in high-concurrency environments where lock contention is a thing.
+Due to the sharded nature, it uses an approximate LRU algorithm.
 
 FreeLRU is for single-threaded use only.
 For thread-safety, the locking of operations needs to be controlled by the caller.
 
-The function to calculate hashes from the keys needs to be provided by the caller.
+### Comparison with other multithreaded LRU implementations
+Add with `GOMAXPROCS=1`
+```
+BenchmarkParallelSyncedFreeLRUAdd_int_int128    42022706                28.27 ns/op            0 B/op          0 allocs/op
+BenchmarkParallelShardedFreeLRUAdd_int_int128   35353412                33.33 ns/op            0 B/op          0 allocs/op
+BenchmarkParallelFreeCacheAdd_int_int128        14825518                79.58 ns/op            0 B/op          0 allocs/op
+BenchmarkParallelRistrettoAdd_int_int128         5565997               206.1 ns/op           121 B/op          3 allocs/op
+BenchmarkParallelPhusluAdd_int_int128           28041186                41.26 ns/op            0 B/op          0 allocs/op
+BenchmarkParallelCloudflareAdd_int_int128        6300747               185.0 ns/op            48 B/op          2 allocs/op
+```
+Add with `GOMAXPROCS=1000`
+```
+BenchmarkParallelSyncedFreeLRUAdd_int_int128-1000               12251070               138.9 ns/op             0 B/op          0 allocs/op
+BenchmarkParallelShardedFreeLRUAdd_int_int128-1000              112706306               10.59 ns/op            0 B/op          0 allocs/op
+BenchmarkParallelFreeCacheAdd_int_int128-1000                   47873679                24.14 ns/op            0 B/op          0 allocs/op
+BenchmarkParallelRistrettoAdd_int_int128-1000                   69838436                16.93 ns/op          104 B/op          3 allocs/op
+BenchmarkParallelOracamanMapAdd_int_int128-1000                 25694386                40.48 ns/op           37 B/op          0 allocs/op
+BenchmarkParallelPhusluAdd_int_int128-1000                      89379122                14.19 ns/op            0 B/op          0 allocs/op
+```
+`Ristretto` offloads the LRU functionality of `Add()` to a separate goroutine, which is why it is relatively fast. But the
+separate goroutine doesn't show up in the benchmarks, so the numbers are not directly comparable.
+
+`Oracaman` is not an LRU implementation, just a thread-safety wrapper around `map`.
+
+Get with `GOMAXPROCS=1`
+```
+BenchmarkParallelSyncedGet      43031780                27.35 ns/op            0 B/op          0 allocs/op
+BenchmarkParallelShardedGet     51807500                22.86 ns/op            0 B/op          0 allocs/op
+BenchmarkParallelFreeCacheGet   21948183                53.52 ns/op           16 B/op          1 allocs/op
+BenchmarkParallelRistrettoGet   30343872                33.82 ns/op            7 B/op          0 allocs/op
+BenchmarkParallelBigCacheGet    21073627                51.08 ns/op           16 B/op          2 allocs/op
+BenchmarkParallelPhusluGet      59487482                20.02 ns/op            0 B/op          0 allocs/op
+BenchmarkParallelCloudflareGet  17011405                67.11 ns/op            8 B/op          1 allocs/op
+```
+Get with `GOMAXPROCS=1000`
+```
+BenchmarkParallelSyncedGet-1000                 10867552               151.0 ns/op             0 B/op          0 allocs/op
+BenchmarkParallelShardedGet-1000                287238988                4.061 ns/op           0 B/op          0 allocs/op
+BenchmarkParallelFreeCacheGet-1000              78045916                15.33 ns/op           16 B/op          1 allocs/op
+BenchmarkParallelRistrettoGet-1000              214839645                6.060 ns/op           7 B/op          0 allocs/op
+BenchmarkParallelBigCacheGet-1000               163672804                7.282 ns/op          16 B/op          2 allocs/op
+BenchmarkParallelPhusluGet-1000                 200133655                6.039 ns/op           0 B/op          0 allocs/op
+BenchmarkParallelCloudflareGet-1000             100000000               11.26 ns/op            8 B/op          1 allocs/op
+```
+`Cloudflare` and `BigCache` only accept `string` as the key type.
+So the ser/deser of `int` to `string` is part of the benchmarks for a fair comparison
+
+Here you can see that `SyncedLRU` badly suffers from lock contention.
+`ShardedLRU` is ~37x faster than `SyncedLRU` in a high-concurrency situation and the second
+fastest LRU implementation (`Ristretto` and `Phuslu`) is 50% slower.
 
 ### Merging hashmap and ringbuffer
 
@@ -121,6 +220,7 @@ BenchmarkFreeLRUGet-20                          83158561                13.80 ns
 BenchmarkSimpleLRUGet-20                        146248706                8.199 ns/op           0 B/op          0 allocs/op
 BenchmarkFreeCacheGet-20                        58229779                19.56 ns/op            0 B/op          0 allocs/op
 BenchmarkRistrettoGet-20                        31157457                35.37 ns/op           10 B/op          1 allocs/op
+BenchmarkPhusluGet-20                           55071919                20.63 ns/op            0 B/op          0 allocs/op
 BenchmarkMapGet-20                              195464706                6.031 ns/op           0 B/op          0 allocs/op
 ```
 
@@ -167,3 +267,33 @@ Here you will also find an amd64 version of the Go internal hash function, which
 of the CPU.
 
 In case you already have a hash that you want to use as the key, you have to provide an "identity" function.
+
+## Comparison of hash functions
+Hashing `int`
+```
+BenchmarkHashInt_MapHash-20                             181521530                6.806 ns/op           0 B/op          0 allocs/op
+BenchmarkHashInt_MapHasher-20                           727805824                1.595 ns/op           0 B/op          0 allocs/op
+BenchmarkHashInt_FNV1A-20                               621439513                1.919 ns/op           0 B/op          0 allocs/op
+BenchmarkHashInt_FNV1AUnsafe-20                         706583145                1.699 ns/op           0 B/op          0 allocs/op
+BenchmarkHashInt_AESENC-20                              1000000000               0.9659 ns/op          0 B/op          0 allocs/op
+BenchmarkHashInt_XXHASH-20                              516779404                2.341 ns/op           0 B/op          0 allocs/op
+BenchmarkHashInt_XXH3HASH-20                            562645186                2.127 ns/op           0 B/op          0 allocs/op
+```
+Hashing `string`
+```
+BenchmarkHashString_MapHash-20                          72106830                15.80 ns/op            0 B/op          0 allocs/op
+BenchmarkHashString_MapHasher-20                        385338830                2.868 ns/op           0 B/op          0 allocs/op
+BenchmarkHashString_FNV1A-20                            60162328                19.33 ns/op            0 B/op          0 allocs/op
+BenchmarkHashString_AESENC-20                           475896514                2.472 ns/op           0 B/op          0 allocs/op
+BenchmarkHashString_XXHASH-20                           185842404                6.476 ns/op           0 B/op          0 allocs/op
+BenchmarkHashString_XXH3HASH-20                         375255375                3.182 ns/op           0 B/op          0 allocs/op
+```
+As you can see, the speed depends on the object type to hash. I think, it mostly boils down to the size of the object.
+`MapHasher` is dangerous to use because it is not guaranteed to be stable across Go versions.
+`AESENC` uses the AES CPU extensions on X86-64. In theory, it should work on ARM64 as well (not tested by me). 
+
+For a small number of bytes, `FNV1A` is the fastest. 
+Otherwise, `XXH3` looks like a good choice.
+
+## License
+The code is licensed under the Apache 2.0 license. See the `LICENSE` file for details.

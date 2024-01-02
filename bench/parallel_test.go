@@ -23,8 +23,13 @@ import (
 	"math/rand"
 	"runtime"
 	"testing"
+	"time"
 
+	cloudflare "github.com/cloudflare/golibs/lrucache"
 	"github.com/coocood/freecache"
+	"github.com/dgraph-io/ristretto"
+	oracaman "github.com/orcaman/concurrent-map/v2"
+	phuslu "github.com/phuslu/lru"
 
 	"github.com/elastic/go-freelru"
 )
@@ -134,6 +139,123 @@ func BenchmarkParallelFreeCacheAdd_int_int128(b *testing.B) {
 			_ = lru.Set(bk[:], bv[:], 60)
 		}
 	})
+}
+
+func runParallelRistrettoLRUAddInt[K comparable, V any](b *testing.B) {
+	cache, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: CAP * 10, // number of keys to track frequency of.
+		MaxCost:     CAP * 16, // maximum cost of cache.
+		BufferItems: 64,       // number of keys per Get buffer.
+	})
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	var val V
+	keys := getParallelKeys[K]()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for i := rand.Intn(len(keys)); pb.Next(); i++ {
+			if i >= len(keys) {
+				i = 0
+			}
+			cache.Set(keys[i], val, 1)
+		}
+	})
+}
+
+func BenchmarkParallelRistrettoAdd_int_int(b *testing.B) {
+	runParallelRistrettoLRUAddInt[int, int](b)
+}
+
+func BenchmarkParallelRistrettoAdd_int_int128(b *testing.B) {
+	runParallelRistrettoLRUAddInt[int, int128](b)
+}
+
+func runParallelOracamanMapAddInt[K comparable, V any](b *testing.B) {
+	m := oracaman.NewWithCustomShardingFunction[K, V](getHashAESENC[K]())
+
+	var val V
+	keys := getParallelKeys[K]()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for i := rand.Intn(len(keys)); pb.Next(); i++ {
+			if i >= len(keys) {
+				i = 0
+			}
+			m.Set(keys[i], val)
+		}
+	})
+}
+
+func BenchmarkParallelOracamanMapAdd_int_int(b *testing.B) {
+	runParallelOracamanMapAddInt[int, int](b)
+}
+
+func BenchmarkParallelOracamanMapAdd_int_int128(b *testing.B) {
+	runParallelOracamanMapAddInt[int, int128](b)
+}
+
+func runParallelPhusluAddInt[K comparable, V any](b *testing.B) {
+	cache := phuslu.New[K, V](CAP)
+
+	var val V
+	keys := getParallelKeys[K]()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for i := rand.Intn(len(keys)); pb.Next(); i++ {
+			if i >= len(keys) {
+				i = 0
+			}
+			_, _ = cache.Set(keys[i], val)
+		}
+	})
+}
+
+func BenchmarkParallelPhusluAdd_int_int(b *testing.B) {
+	runParallelPhusluAddInt[int, int](b)
+}
+
+func BenchmarkParallelPhusluAdd_int_int128(b *testing.B) {
+	runParallelPhusluAddInt[int, int128](b)
+}
+
+func runParallelCloudflareAddInt[V any](b *testing.B) {
+	// Only works with string as key.
+	cache := cloudflare.NewMultiLRUCache(256, CAP/256)
+
+	var val V
+	var expire time.Time
+	keys := getParallelKeys[string]()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for i := rand.Intn(len(keys)); pb.Next(); i++ {
+			if i >= len(keys) {
+				i = 0
+			}
+			cache.Set(keys[i], val, expire)
+		}
+	})
+}
+
+func BenchmarkParallelCloudflareAdd_int_int(b *testing.B) {
+	runParallelCloudflareAddInt[int](b)
+}
+
+func BenchmarkParallelCloudflareAdd_int_int128(b *testing.B) {
+	runParallelCloudflareAddInt[int128](b)
 }
 
 var (

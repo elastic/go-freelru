@@ -3,7 +3,7 @@
 tests: check
 
 check:
-	go test ./... -benchmem
+	go test ./... -benchmem -race
 
 clean:
 	rm *.test */*.test
