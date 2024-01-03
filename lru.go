@@ -97,8 +97,8 @@ func (lru *LRU[K, V]) SetOnEvict(onEvict OnEvictCallback[K, V]) {
 
 // New constructs an LRU with the given capacity of elements.
 // The hash function calculates a hash value from the keys.
-func New[K comparable, V any](cap uint32, hash HashKeyCallback[K]) (*LRU[K, V], error) {
-	return NewWithSize[K, V](cap, cap, hash)
+func New[K comparable, V any](capacity uint32, hash HashKeyCallback[K]) (*LRU[K, V], error) {
+	return NewWithSize[K, V](capacity, capacity, hash)
 }
 
 // NewWithSize constructs an LRU with the given capacity and size.
@@ -106,23 +106,23 @@ func New[K comparable, V any](cap uint32, hash HashKeyCallback[K]) (*LRU[K, V], 
 // A size greater than the capacity increases memory consumption and decreases the CPU consumption
 // by reducing the chance of collisions.
 // Size must not be lower than the capacity.
-func NewWithSize[K comparable, V any](cap, size uint32, hash HashKeyCallback[K]) (
+func NewWithSize[K comparable, V any](capacity, size uint32, hash HashKeyCallback[K]) (
 	*LRU[K, V], error) {
-	if cap == 0 {
+	if capacity == 0 {
 		return nil, errors.New("capacity must be positive")
 	}
 	if size == emptyBucket {
 		return nil, fmt.Errorf("size must not be %#X", size)
 	}
-	if size < cap {
-		return nil, fmt.Errorf("size (%d) is smaller than capacity (%d)", size, cap)
+	if size < capacity {
+		return nil, fmt.Errorf("size (%d) is smaller than capacity (%d)", size, capacity)
 	}
 	if hash == nil {
 		return nil, errors.New("hash function must be set")
 	}
 
 	lru := &LRU[K, V]{
-		cap:      cap,
+		cap:      capacity,
 		size:     size,
 		hash:     hash,
 		buckets:  make([]uint32, size),
@@ -157,14 +157,6 @@ func (lru *LRU[K, V]) hashToPos(hash uint32) (bucketPos, elemPos uint32) {
 	return
 }
 
-// nextPos avoids the costly modulo operation.
-func (lru *LRU[K, V]) nextPos(pos uint32) uint32 {
-	if pos+1 != lru.size {
-		return pos + 1
-	}
-	return 0
-}
-
 // setHead links the element as the head into the list.
 func (lru *LRU[K, V]) setHead(pos uint32) {
 	if pos == lru.head {
@@ -188,7 +180,7 @@ func (lru *LRU[K, V]) unlinkElement(pos uint32) {
 func (lru *LRU[K, V]) unlinkBucket(pos uint32) {
 	prevBucket := lru.elements[pos].prevBucket
 	nextBucket := lru.elements[pos].nextBucket
-	if prevBucket == nextBucket && prevBucket == pos {
+	if prevBucket == nextBucket && prevBucket == pos { //nolint:gocritic
 		// The element references itself, so it's the only bucket entry
 		lru.buckets[lru.elements[pos].bucketPos] = emptyBucket
 		return
@@ -219,28 +211,28 @@ func (lru *LRU[K, V]) evict(pos uint32) {
 
 // Move element from position old to new.
 // That avoids 'gaps' and new elements can always be simply appended.
-func (lru *LRU[K, V]) move(new, old uint32) {
-	if new == old {
+func (lru *LRU[K, V]) move(to, from uint32) {
+	if to == from {
 		return
 	}
-	if old == lru.head {
-		lru.head = new
+	if from == lru.head {
+		lru.head = to
 	}
 
-	prev := lru.elements[old].prev
-	next := lru.elements[old].next
-	lru.elements[prev].next = new
-	lru.elements[next].prev = new
+	prev := lru.elements[from].prev
+	next := lru.elements[from].next
+	lru.elements[prev].next = to
+	lru.elements[next].prev = to
 
-	prev = lru.elements[old].prevBucket
-	next = lru.elements[old].nextBucket
-	lru.elements[prev].nextBucket = new
-	lru.elements[next].prevBucket = new
+	prev = lru.elements[from].prevBucket
+	next = lru.elements[from].nextBucket
+	lru.elements[prev].nextBucket = to
+	lru.elements[next].prevBucket = to
 
-	lru.elements[new] = lru.elements[old]
+	lru.elements[to] = lru.elements[from]
 
-	if lru.buckets[lru.elements[new].bucketPos] == old {
-		lru.buckets[lru.elements[new].bucketPos] = new
+	if lru.buckets[lru.elements[to].bucketPos] == from {
+		lru.buckets[lru.elements[to].bucketPos] = to
 	}
 }
 
@@ -334,7 +326,7 @@ func (lru *LRU[K, V]) addWithLifetime(hash uint32, key K, value V, lifetime time
 		lru.elements[pos].nextBucket = pos
 		lru.elements[pos].prevBucket = pos
 		lru.insert(pos, key, value, lifetime)
-		return
+		return evicted
 	}
 
 	// Walk through the bucket list to see whether key already exists.
@@ -389,7 +381,7 @@ func (lru *LRU[K, V]) addWithLifetime(hash uint32, key K, value V, lifetime time
 		// That means we have a collision.
 		lru.collisions++
 	}
-	return
+	return evicted
 }
 
 // Add adds a key:value to the cache.

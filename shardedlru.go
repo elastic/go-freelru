@@ -48,18 +48,19 @@ func nextPowerOfTwo(val uint32) uint32 {
 }
 
 // NewSharded creates a new thread-safe sharded LRU hashmap with the given capacity.
-func NewSharded[K comparable, V any](cap uint32, hash HashKeyCallback[K]) (*ShardedLRU[K, V], error) {
-	size := uint32((float64(cap) * 1.25)) // 25% extra space for fewer collisions
+func NewSharded[K comparable, V any](capacity uint32, hash HashKeyCallback[K]) (*ShardedLRU[K, V], error) {
+	size := uint32(float64(capacity) * 1.25) // 25% extra space for fewer collisions
 
-	return NewShardedWithSize[K, V](uint32(runtime.GOMAXPROCS(0)*16), cap, size, hash)
+	return NewShardedWithSize[K, V](uint32(runtime.GOMAXPROCS(0)*16), capacity, size, hash)
 }
 
-func NewShardedWithSize[K comparable, V any](shards, cap, size uint32, hash HashKeyCallback[K]) (*ShardedLRU[K, V], error) {
-	if cap == 0 {
+func NewShardedWithSize[K comparable, V any](shards, capacity, size uint32, hash HashKeyCallback[K]) (
+	*ShardedLRU[K, V], error) {
+	if capacity == 0 {
 		return nil, errors.New("capacity must be positive")
 	}
-	if size < cap {
-		return nil, fmt.Errorf("size (%d) is smaller than capacity (%d)", size, cap)
+	if size < capacity {
+		return nil, fmt.Errorf("size (%d) is smaller than capacity (%d)", size, capacity)
 	}
 
 	if size < 1<<31 {
@@ -80,14 +81,14 @@ func NewShardedWithSize[K comparable, V any](shards, cap, size uint32, hash Hash
 		size = 1
 	}
 
-	cap = (cap + shards - 1) / shards // size per LRU
-	if cap == 0 {
-		cap = 1
+	capacity = (capacity + shards - 1) / shards // size per LRU
+	if capacity == 0 {
+		capacity = 1
 	}
 
 	lrus := make([]LRU[K, V], shards)
 	for i := range lrus {
-		lru, err := NewWithSize[K, V](cap, size, hash)
+		lru, err := NewWithSize[K, V](capacity, size, hash)
 		if err != nil {
 			return nil, err
 		}
