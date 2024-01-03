@@ -48,7 +48,7 @@ func hashUint64(i uint64) uint32 {
 	return h
 }
 
-func makeLRUWithLifetime(t *testing.T, cap uint32, evictCounter *int,
+func makeLRUWithLifetime(t *testing.T, capacity uint32, evictCounter *int,
 	lifetime time.Duration) *LRU[uint64, uint64] {
 	onEvict := func(k uint64, v uint64) {
 		FatalIf(t, k+1 != v, "Evict value not matching (%v+1 != %v)", k, v)
@@ -57,7 +57,7 @@ func makeLRUWithLifetime(t *testing.T, cap uint32, evictCounter *int,
 		}
 	}
 
-	lru, err := New[uint64, uint64](cap, hashUint64)
+	lru, err := New[uint64, uint64](capacity, hashUint64)
 	FatalIf(t, err != nil, "Failed to create LRU: %v", err)
 
 	lru.SetLifetime(lifetime)
@@ -66,8 +66,8 @@ func makeLRUWithLifetime(t *testing.T, cap uint32, evictCounter *int,
 	return lru
 }
 
-func makeLRU(t *testing.T, cap uint32, evictCounter *int) *LRU[uint64, uint64] {
-	return makeLRUWithLifetime(t, cap, evictCounter, 0)
+func makeLRU(t *testing.T, capacity uint32, evictCounter *int) *LRU[uint64, uint64] {
+	return makeLRUWithLifetime(t, capacity, evictCounter, 0)
 }
 
 func TestLRU(t *testing.T) {
