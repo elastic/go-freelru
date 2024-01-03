@@ -3,10 +3,13 @@
 tests: check
 
 check:
-	go test ./... -benchmem -race
+	@go test ./... -benchmem -race
 
 clean:
-	rm *.test */*.test
+	@rm *.test */*.test
 
 benchmarks:
-	(cd bench; go test -count 1 -bench . -run XXX)
+	@(cd bench; go test -count 1 -bench . -run XXX)
+
+lint:
+	@golangci-lint run
