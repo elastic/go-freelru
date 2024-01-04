@@ -1,3 +1,5 @@
+[![Go Reference](https://pkg.go.dev/badge/github.com/elastic/go-freelru.svg)](https://pkg.go.dev/github.com/elastic/go-freelru)
+
 # FreeLRU - A GC-less, fast and generic LRU hashmap library for Go
 
 FreeLRU allows you to cache objects without introducing GC overhead.
