@@ -1,4 +1,4 @@
-.PHONY: benchmarks check tests clean
+.PHONY: bench check tests clean
 
 tests: check
 
@@ -8,8 +8,8 @@ check:
 clean:
 	@rm *.test */*.test
 
-benchmarks:
-	@(cd bench; go test -count 1 -bench . -run XXX)
+bench:
+	@(cd bench; go test -bench=. -run XXX)
 
 lint:
 	@golangci-lint run
