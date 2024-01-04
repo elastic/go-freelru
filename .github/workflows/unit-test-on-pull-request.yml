@@ -70,4 +70,4 @@ jobs:
         uses: actions/checkout@v4
       - name: Run Benchmarks
         run: |
-          make bench
+          GOMAXPROCS=100 make bench
