@@ -22,7 +22,7 @@ jobs:
         go-version: ${{matrix.go}}
         check-latest: true
       id: go
-    - name: Check out FreeLRU
+    - name: Check out
       uses: actions/checkout@v4
     - name: Linter
       run: |
@@ -45,8 +45,29 @@ jobs:
         go-version: ${{matrix.go}}
         check-latest: true
       id: go
-    - name: Check out FreeLRU
+    - name: Check out
       uses: actions/checkout@v4
     - name: Run Test
       run: |
           make check
+
+  bench:
+    name: Bench
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      max-parallel: 2
+      matrix:
+        go: ["stable"]
+    steps:
+      - name: Set up Go ${{matrix.go}}
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{matrix.go}}
+          check-latest: true
+        id: go
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Run Benchmarks
+        run: |
+          make bench
