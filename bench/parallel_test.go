@@ -28,10 +28,10 @@ import (
 	cloudflare "github.com/cloudflare/golibs/lrucache"
 	"github.com/coocood/freecache"
 	"github.com/dgraph-io/ristretto"
+	freelru "github.com/elastic/go-freelru"
+	hashicorp "github.com/hashicorp/golang-lru/v2"
 	oracaman "github.com/orcaman/concurrent-map/v2"
 	phuslu "github.com/phuslu/lru"
-
-	"github.com/elastic/go-freelru"
 )
 
 func runParallelSyncedFreeLRUAdd[K comparable, V any](b *testing.B) {
@@ -256,6 +256,36 @@ func BenchmarkParallelCloudflareAdd_int_int(b *testing.B) {
 
 func BenchmarkParallelCloudflareAdd_int_int128(b *testing.B) {
 	runParallelCloudflareAddInt[int128](b)
+}
+
+func runParallelHashicorpAdd[K comparable, V any](b *testing.B) {
+	lru, err := hashicorp.New[K, V](CAP)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	var val V
+	keys := getParallelKeys[K]()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for i := rand.Intn(len(keys)); pb.Next(); i++ {
+			if i >= len(keys) {
+				i = 0
+			}
+			lru.Add(keys[i], val)
+		}
+	})
+}
+
+func BenchmarkParallelHashicorpAdd_int_int(b *testing.B) {
+	runParallelSyncedFreeLRUAdd[int, int](b)
+}
+
+func BenchmarkParallelHashicorpAdd_int_int128(b *testing.B) {
+	runParallelHashicorpAdd[int, int128](b)
 }
 
 var (

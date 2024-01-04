@@ -26,10 +26,10 @@ import (
 	cloudflare "github.com/cloudflare/golibs/lrucache"
 	"github.com/coocood/freecache"
 	"github.com/dgraph-io/ristretto"
+	"github.com/elastic/go-freelru"
+	hashicorp "github.com/hashicorp/golang-lru/v2"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	phuslu "github.com/phuslu/lru"
-
-	"github.com/elastic/go-freelru"
 )
 
 func BenchmarkFreeLRUGet(b *testing.B) {
@@ -410,6 +410,47 @@ func BenchmarkParallelCloudflareGet(b *testing.B) {
 			bk := [8]byte{}
 			binary.BigEndian.PutUint64(bk[:], uint64(intKey(i)))
 			_, _ = cache.Get(string(bk[:]))
+		}
+	})
+}
+
+func BenchmarkHashicorpGet(b *testing.B) {
+	cache, err := hashicorp.New[int, int](CAP)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	for i := 0; i < CAP; i++ {
+		cache.Add(intKeys[i], intKeys[i])
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, _ = cache.Get(intKey(i))
+	}
+}
+
+func BenchmarkParallelHashicorpGet(b *testing.B) {
+	cache, err := hashicorp.New[int, int](CAP)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	for i := 0; i < CAP; i++ {
+		cache.Add(intKeys[i], intKeys[i])
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for i := rand.Intn(CAP); pb.Next(); i++ {
+			if i >= CAP {
+				i = 0
+			}
+			_, _ = cache.Get(intKey(i))
 		}
 	})
 }
