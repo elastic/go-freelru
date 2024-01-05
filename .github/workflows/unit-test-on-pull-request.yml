@@ -99,22 +99,27 @@ jobs:
       - name: Run Coverage
         run: |
           go test -v -cover ./... -coverprofile coverage.out -coverpkg ./...
-          go tool cover -func coverage.out -o coverage.out  # Replaces coverage.out with the analysis of coverage.out
+#          go tool cover -func coverage.out -o coverage.out  # Replaces coverage.out with the analysis of coverage.out
 
-      - name: Go Coverage Badge
-        uses: tj-actions/coverage-badge-go@v1
-        # if: ${{ runner.os == 'Linux' && matrix.go == '1.17' }} # Runs this on only one of the ci builds.
-        with:
-          green: 80
-          filename: coverage.out
+      - name: Report Coveralls
+        run: curl -sL https://coveralls.io/coveralls-linux.tar.gz | tar -xz && ./coveralls report coverage.out --format=golang
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-#      - name: Pull in remote changes
-#        run: git pull --rebase
+#      - name: Go Coverage Badge
+#        uses: tj-actions/coverage-badge-go@v1
+#        # if: ${{ runner.os == 'Linux' && matrix.go == '1.17' }} # Runs this on only one of the ci builds.
+#        with:
+#          green: 80
+#          filename: coverage.out
 
-      - uses: stefanzweifel/git-auto-commit-action@v5
-        id: auto-commit-action
-        with:
-          commit_message: Apply Code Coverage Badge
-          skip_fetch: true
-          skip_checkout: true
-          file_pattern: ./README.md
+##      - name: Pull in remote changes
+##        run: git pull --rebase
+
+#      - uses: stefanzweifel/git-auto-commit-action@v5
+#        id: auto-commit-action
+#        with:
+#          commit_message: Apply Code Coverage Badge
+#          skip_fetch: true
+#          skip_checkout: true
+#          file_pattern: ./README.md
