@@ -1,6 +1,6 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/elastic/go-freelru.svg)](https://pkg.go.dev/github.com/elastic/go-freelru)
-![Coverage](https://img.shields.io/badge/Coverage-93.5%25-brightgreen)
 [![Go Report Card](https://goreportcard.com/badge/github.com/elastic/go-freelru)](https://goreportcard.com/report/github.com/elastic/go-freelru)
+[![Coverage Status](https://coveralls.io/repos/github/elastic/go-freelru/badge.svg)](https://coveralls.io/github/elastic/go-freelru)
 
 # FreeLRU - A GC-less, fast and generic LRU hashmap library for Go
 
