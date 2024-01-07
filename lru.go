@@ -83,6 +83,8 @@ type LRU[K comparable, V any] struct {
 	removals   uint64
 }
 
+var _ Cache[int, int] = (*LRU[int, int])(nil)
+
 // SetLifetime sets the default lifetime of LRU elements.
 // Lifetime 0 means "forever".
 func (lru *LRU[K, V]) SetLifetime(lifetime time.Duration) {

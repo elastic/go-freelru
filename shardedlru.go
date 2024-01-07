@@ -20,6 +20,8 @@ type ShardedLRU[K comparable, V any] struct {
 	mask   uint32
 }
 
+var _ Cache[int, int] = (*ShardedLRU[int, int])(nil)
+
 // SetLifetime sets the default lifetime of LRU elements.
 // Lifetime 0 means "forever".
 func (lru *ShardedLRU[K, V]) SetLifetime(lifetime time.Duration) {

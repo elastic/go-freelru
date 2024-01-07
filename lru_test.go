@@ -48,8 +48,7 @@ func hashUint64(i uint64) uint32 {
 	return h
 }
 
-func makeLRUWithLifetime(t *testing.T, capacity uint32, evictCounter *int,
-	lifetime time.Duration) *LRU[uint64, uint64] {
+func setupCache(t *testing.T, cache Cache[uint64, uint64], evictCounter *uint64) Cache[uint64, uint64] {
 	onEvict := func(k uint64, v uint64) {
 		FatalIf(t, k+1 != v, "Evict value not matching (%v+1 != %v)", k, v)
 		if evictCounter != nil {
@@ -57,131 +56,179 @@ func makeLRUWithLifetime(t *testing.T, capacity uint32, evictCounter *int,
 		}
 	}
 
-	lru, err := New[uint64, uint64](capacity, hashUint64)
-	FatalIf(t, err != nil, "Failed to create LRU: %v", err)
+	cache.SetOnEvict(onEvict)
 
-	lru.SetLifetime(lifetime)
-	lru.SetOnEvict(onEvict)
-
-	return lru
+	return cache
 }
 
-func makeLRU(t *testing.T, capacity uint32, evictCounter *int) *LRU[uint64, uint64] {
-	return makeLRUWithLifetime(t, capacity, evictCounter, 0)
+func makeCache(t *testing.T, capacity uint32, evictCounter *uint64) Cache[uint64, uint64] {
+	cache, err := New[uint64, uint64](capacity, hashUint64)
+	FatalIf(t, err != nil, "Failed to create LRU: %v", err)
+
+	return setupCache(t, cache, evictCounter)
+}
+
+func makeSyncedLRU(t *testing.T, capacity uint32, evictCounter *uint64) Cache[uint64, uint64] {
+	cache, err := NewSynced[uint64, uint64](capacity, hashUint64)
+	FatalIf(t, err != nil, "Failed to create SyncedLRU: %v", err)
+
+	return setupCache(t, cache, evictCounter)
 }
 
 func TestLRU(t *testing.T) {
 	const CAP = 32
 
-	evictCounter := 0
-	lru := makeLRU(t, CAP, &evictCounter)
+	evictCounter := uint64(0)
+	testCache(t, CAP, makeCache(t, CAP, &evictCounter), &evictCounter)
+}
 
-	for i := uint64(0); i < CAP*2; i++ {
-		lru.Add(i, i+1)
+func TestSyncedLRU(t *testing.T) {
+	const CAP = 32
+
+	evictCounter := uint64(0)
+	testCache(t, CAP, makeSyncedLRU(t, CAP, &evictCounter), &evictCounter)
+}
+
+func testCache(t *testing.T, cAP uint64, cache Cache[uint64, uint64], evictCounter *uint64) {
+	for i := uint64(0); i < cAP*2; i++ {
+		cache.Add(i, i+1)
 	}
-	FatalIf(t, lru.Len() != CAP, "Unexpected number of entries: %v (!= %d)", lru.Len(), CAP)
-	FatalIf(t, evictCounter != CAP, "Unexpected number of evictions: %v (!= %d)", evictCounter, CAP)
+	FatalIf(t, cache.Len() != int(cAP), "Unexpected number of entries: %v (!= %d)", cache.Len(), cAP)
+	FatalIf(t, *evictCounter != cAP, "Unexpected number of evictions: %v (!= %d)", evictCounter, cAP)
 
-	keys := lru.Keys()
+	keys := cache.Keys()
 	for i, k := range keys {
-		if v, ok := lru.Get(k); !ok || v != k+1 || v != uint64(i+CAP+1) {
+		if v, ok := cache.Get(k); !ok || v != k+1 || v != uint64(i+int(cAP)+1) {
 			t.Fatalf("Mismatch of key %v (ok=%v v=%v)\n%v", k, ok, v, keys)
 		}
 	}
 
-	for i := uint64(0); i < CAP; i++ {
-		if _, ok := lru.Get(i); ok {
+	for i := uint64(0); i < cAP; i++ {
+		if _, ok := cache.Get(i); ok {
 			t.Fatalf("Missing eviction of %d", i)
 		}
 	}
 
-	for i := uint64(CAP); i < CAP*2; i++ {
-		if _, ok := lru.Get(i); !ok {
+	for i := cAP; i < cAP*2; i++ {
+		if _, ok := cache.Get(i); !ok {
 			t.Fatalf("Unexpected eviction of %d", i)
 		}
 	}
 
-	FatalIf(t, lru.Remove(CAP*2), "Unexpected success removing %d", CAP*2)
-	FatalIf(t, !lru.Remove(CAP*2-1), "Failed to remove most recent entry %d", CAP*2-1)
-	FatalIf(t, !lru.Remove(CAP), "Failed to remove oldest entry %d", CAP)
-	FatalIf(t, evictCounter != CAP+2, "Unexpected # of evictions: %d (!= %d)", evictCounter, CAP+2)
-	FatalIf(t, lru.Len() != CAP-2, "Unexpected # of entries: %d (!= %d)", lru.Len(), CAP-2)
+	FatalIf(t, cache.Remove(cAP*2), "Unexpected success removing %d", cAP*2)
+	FatalIf(t, !cache.Remove(cAP*2-1), "Failed to remove most recent entry %d", cAP*2-1)
+	FatalIf(t, !cache.Remove(cAP), "Failed to remove oldest entry %d", cAP)
+	FatalIf(t, *evictCounter != cAP+2, "Unexpected # of evictions: %d (!= %d)", evictCounter, cAP+2)
+	FatalIf(t, cache.Len() != int(cAP-2), "Unexpected # of entries: %d (!= %d)", cache.Len(), cAP-2)
 }
 
 func TestLRU_Add(t *testing.T) {
-	evictCounter := 0
-	lru := makeLRU(t, 1, &evictCounter)
+	evictCounter := uint64(0)
+	cache := makeCache(t, 1, &evictCounter)
 
-	FatalIf(t, lru.Add(1, 2) == true || evictCounter != 0, "Unexpected eviction")
-	FatalIf(t, lru.Add(3, 4) == false || evictCounter != 1, "Missing eviction")
+	FatalIf(t, cache.Add(1, 2) == true || evictCounter != 0, "Unexpected eviction")
+	FatalIf(t, cache.Add(3, 4) == false || evictCounter != 1, "Missing eviction")
+}
+
+func TestSyncedLRU_Add(t *testing.T) {
+	evictCounter := uint64(0)
+	cache := makeSyncedLRU(t, 1, &evictCounter)
+
+	FatalIf(t, cache.Add(1, 2) == true || evictCounter != 0, "Unexpected eviction")
+	FatalIf(t, cache.Add(3, 4) == false || evictCounter != 1, "Missing eviction")
 }
 
 func TestLRU_Remove(t *testing.T) {
-	evictCounter := 0
-	lru := makeLRU(t, 2, &evictCounter)
-	lru.Add(1, 2)
-	lru.Add(3, 4)
+	evictCounter := uint64(0)
+	cache := makeCache(t, 2, &evictCounter)
+	cache.Add(1, 2)
+	cache.Add(3, 4)
 
-	FatalIf(t, !lru.Remove(1), "Failed to remove most recent entry %d", 1)
-	FatalIf(t, !lru.Remove(3), "Failed to remove most recent entry %d", 3)
+	FatalIf(t, !cache.Remove(1), "Failed to remove most recent entry %d", 1)
+	FatalIf(t, !cache.Remove(3), "Failed to remove most recent entry %d", 3)
 	FatalIf(t, evictCounter != 2, "Unexpected # of evictions: %d (!= %d)", evictCounter, 2)
-	FatalIf(t, lru.Len() != 0, "Unexpected # of entries: %d (!= %d)", lru.Len(), 0)
+	FatalIf(t, cache.Len() != 0, "Unexpected # of entries: %d (!= %d)", cache.Len(), 0)
 }
 
-func TestLRU_AddWithExpire(t *testing.T) {
+func TestSyncedLRU_Remove(t *testing.T) {
+	evictCounter := uint64(0)
+	cache := makeSyncedLRU(t, 2, &evictCounter)
+	cache.Add(1, 2)
+	cache.Add(3, 4)
+
+	FatalIf(t, !cache.Remove(1), "Failed to remove most recent entry %d", 1)
+	FatalIf(t, !cache.Remove(3), "Failed to remove most recent entry %d", 3)
+	FatalIf(t, evictCounter != 2, "Unexpected # of evictions: %d (!= %d)", evictCounter, 2)
+	FatalIf(t, cache.Len() != 0, "Unexpected # of entries: %d (!= %d)", cache.Len(), 0)
+}
+
+func testCacheAddWithExpire(t *testing.T, cache Cache[uint64, uint64]) {
 	// check for LRU default lifetime + element specific override
-	lru := makeLRUWithLifetime(t, 2, nil, 100*time.Millisecond)
-	lru.Add(1, 2)
-	lru.AddWithLifetime(3, 4, 200*time.Millisecond)
-	_, ok := lru.Get(1)
+	cache.SetLifetime(100 * time.Millisecond)
+	cache.Add(1, 2)
+	cache.AddWithLifetime(3, 4, 200*time.Millisecond)
+	_, ok := cache.Get(1)
 	FatalIf(t, !ok, "Failed to get")
 	time.Sleep(101 * time.Millisecond)
-	_, ok = lru.Get(1)
+	_, ok = cache.Get(1)
 	FatalIf(t, ok, "Expected expiration did not happen")
-	_, ok = lru.Get(3)
+	_, ok = cache.Get(3)
 	FatalIf(t, !ok, "Failed to get")
 	time.Sleep(100 * time.Millisecond)
-	_, ok = lru.Get(3)
+	_, ok = cache.Get(3)
 	FatalIf(t, ok, "Expected expiration did not happen")
 
 	// check for element specific lifetime
-	lru = makeLRU(t, 1, nil)
-	lru.AddWithLifetime(1, 2, 100*time.Millisecond)
-	_, ok = lru.Get(1)
+	cache.Purge()
+	cache.SetLifetime(0)
+	cache.AddWithLifetime(1, 2, 100*time.Millisecond)
+	_, ok = cache.Get(1)
 	FatalIf(t, !ok, "Failed to get")
 	time.Sleep(101 * time.Millisecond)
-	_, ok = lru.Get(1)
+	_, ok = cache.Get(1)
 	FatalIf(t, ok, "Expected expiration did not happen")
 }
 
-// Test that Go map and the LRU stay in sync when adding
-// and randomly removing elements.
-func TestLRUMatch(t *testing.T) {
-	const CAP = 128
+func TestLRU_AddWithExpire(t *testing.T) {
+	testCacheAddWithExpire(t, makeCache(t, 2, nil))
+}
 
-	backup := make(map[uint64]uint64, CAP)
+func TestSyncedLRU_AddWithExpire(t *testing.T) {
+	testCacheAddWithExpire(t, makeSyncedLRU(t, 2, nil))
+}
+
+func TestLRUMatch(t *testing.T) {
+	testCacheMatch(t, makeCache(t, 2, nil), 128)
+}
+
+func TestSyncedLRUMatch(t *testing.T) {
+	testCacheMatch(t, makeCache(t, 2, nil), 128)
+}
+
+// Test that Go map and the Cache stay in sync when adding
+// and randomly removing elements.
+func testCacheMatch(t *testing.T, cache Cache[uint64, uint64], cAP int) {
+	backup := make(map[uint64]uint64, cAP)
 
 	onEvict := func(k uint64, v uint64) {
 		FatalIf(t, k != v, "Evict value not matching (%v != %v)", k, v)
 		delete(backup, k)
 	}
 
-	lru, err := New[uint64, uint64](CAP, hashUint64)
-	FatalIf(t, err != nil, "Failed to create LRU: %v", err)
-	lru.SetOnEvict(onEvict)
+	cache.SetOnEvict(onEvict)
 
 	for i := uint64(0); i < 100000; i++ {
-		lru.Add(i, i)
+		cache.Add(i, i)
 		backup[i] = i
 
 		// ~33% chance to remove a random element
-		r := i - uint64(rand.Int63()%(CAP*3)) // nolint:gosec
-		lru.Remove(r)
+		r := i - uint64(rand.Int()%(cAP*3)) // nolint:gosec
+		cache.Remove(r)
 
-		FatalIf(t, lru.Len() != len(backup), "Len does not match (%d vs %d)",
-			lru.Len(), len(backup))
+		FatalIf(t, cache.Len() != len(backup), "Len does not match (%d vs %d)",
+			cache.Len(), len(backup))
 
-		keys := lru.Keys()
+		keys := cache.Keys()
 		FatalIf(t, len(keys) != len(backup), "Number of keys does not match (%d vs %d)",
 			len(keys), len(backup))
 
@@ -189,21 +236,19 @@ func TestLRUMatch(t *testing.T) {
 			backupVal, ok := backup[key]
 			FatalIf(t, !ok, "Failed to find key %d in map", key)
 
-			lruVal, ok := lru.Peek(key)
-			FatalIf(t, !ok, "Failed to find key %d in LRU", key)
+			val, ok := cache.Peek(key)
+			FatalIf(t, !ok, "Failed to find key %d in Cache", key)
 
-			FatalIf(t, backupVal != lruVal, "Unexpected mismatch of values: %#v %#v",
-				backupVal, lruVal)
+			FatalIf(t, backupVal != val, "Unexpected mismatch of values: %#v %#v",
+				backupVal, val)
 		}
 
 		for k, v := range backup {
-			lruVal, ok := lru.Peek(k)
-			FatalIf(t, !ok, "Failed to find key %d in LRU (i=%d)", k, i)
-			FatalIf(t, v != lruVal, "Unexpected mismatch of values: %#v %#v", v, lruVal)
+			val, ok := cache.Peek(k)
+			FatalIf(t, !ok, "Failed to find key %d in Cache (i=%d)", k, i)
+			FatalIf(t, v != val, "Unexpected mismatch of values: %#v %#v", v, val)
 		}
 	}
-
-	lru.PrintStats()
 }
 
 func FatalIf(t *testing.T, fail bool, fmt string, args ...any) {
@@ -218,25 +263,37 @@ func FatalIf(t *testing.T, fail bool, fmt string, args ...any) {
 
 const count = 1000
 
-// GOGC=off go test -memprofile=mem.out -test.memprofilerate=1 -count 1 -run MapAdd
+// GOGC=off go test -memprofile=mem.out -test.memprofilerate=1 -count 1 -run TestMapAdd
 // go tool pprof mem.out
 // (then check the top10)
 func TestMapAdd(_ *testing.T) {
-	cache := make(map[uint64]int, count)
+	cache := make(map[uint64]uint64, count)
 
-	var val int
+	var val uint64
 	for i := uint64(0); i < count; i++ {
 		cache[i] = val
 	}
 }
 
-// GOGC=off go test -memprofile=mem.out -test.memprofilerate=1 -count 1 -run FreeLRUAdd
+// GOGC=off go test -memprofile=mem.out -test.memprofilerate=1 -count 1 -run TestLRUAdd
 // go tool pprof mem.out
 // (then check the top10)
-func TestFreeLRUAdd(_ *testing.T) {
-	cache, _ := New[uint64, int](count, hashUint64)
+func TestLRUAdd(t *testing.T) {
+	cache := makeCache(t, count, nil)
 
-	var val int
+	var val uint64
+	for i := uint64(0); i < count; i++ {
+		cache.Add(i, val)
+	}
+}
+
+// GOGC=off go test -memprofile=mem.out -test.memprofilerate=1 -count 1 -run TestSyncedLRUAdd
+// go tool pprof mem.out
+// (then check the top10)
+func TestSyncedLRUAdd(t *testing.T) {
+	cache := makeSyncedLRU(t, count, nil)
+
+	var val uint64
 	for i := uint64(0); i < count; i++ {
 		cache.Add(i, val)
 	}
