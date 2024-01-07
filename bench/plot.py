@@ -19,6 +19,8 @@ with (open(file_path, "r") as file):
     for line in file:
         # Assuming each line has the format "BenchmarkName value"
         parts = line.split()
+        if parts[0].startswith("#"):
+            continue
         if len(parts) >= 2 and parts[0].endswith(":"):
             if parts[0] == "goos:":
                 goos = parts[1]
