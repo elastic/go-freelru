@@ -65,6 +65,8 @@ func NewShardedWithSize[K comparable, V any](shards, capacity, size uint32, hash
 
 	if size < 1<<31 {
 		size = nextPowerOfTwo(size) // next power of 2 so the LRUs can avoid costly divisions
+	} else {
+		size = 1 << 31 // the highest 2^N value that fits in a uint32
 	}
 
 	shards = nextPowerOfTwo(shards) // next power of 2 so we can avoid costly division for sharding
@@ -87,12 +89,15 @@ func NewShardedWithSize[K comparable, V any](shards, capacity, size uint32, hash
 	}
 
 	lrus := make([]LRU[K, V], shards)
+	buckets := make([]uint32, size*shards)
+	elements := make([]element[K, V], size*shards)
+
+	from := 0
+	to := int(size)
 	for i := range lrus {
-		lru, err := NewWithSize[K, V](capacity, size, hash)
-		if err != nil {
-			return nil, err
-		}
-		lrus[i] = *lru //nolint:govet
+		initLRU(&lrus[i], capacity, size, hash, buckets[from:to], elements[from:to])
+		from = to
+		to += int(size)
 	}
 
 	return &ShardedLRU[K, V]{
