@@ -10,6 +10,8 @@ type SyncedLRU[K comparable, V any] struct {
 	lru *LRU[K, V]
 }
 
+var _ Cache[int, int] = (*SyncedLRU[int, int])(nil)
+
 // SetLifetime sets the default lifetime of LRU elements.
 // Lifetime 0 means "forever".
 func (lru *SyncedLRU[K, V]) SetLifetime(lifetime time.Duration) {
