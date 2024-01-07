@@ -121,13 +121,22 @@ func NewWithSize[K comparable, V any](capacity, size uint32, hash HashKeyCallbac
 		return nil, errors.New("hash function must be set")
 	}
 
-	lru := &LRU[K, V]{
-		cap:      capacity,
-		size:     size,
-		hash:     hash,
-		buckets:  make([]uint32, size),
-		elements: make([]element[K, V], size),
-	}
+	buckets := make([]uint32, size)
+	elements := make([]element[K, V], size)
+
+	var lru LRU[K, V]
+	initLRU(&lru, capacity, size, hash, buckets, elements)
+
+	return &lru, nil
+}
+
+func initLRU[K comparable, V any](lru *LRU[K, V], capacity, size uint32, hash HashKeyCallback[K],
+	buckets []uint32, elements []element[K, V]) {
+	lru.cap = capacity
+	lru.size = size
+	lru.hash = hash
+	lru.buckets = buckets
+	lru.elements = elements
 
 	// If the size is 2^N, we can avoid costly divisions.
 	if bits.OnesCount32(lru.size) == 1 {
@@ -138,8 +147,6 @@ func NewWithSize[K comparable, V any](capacity, size uint32, hash HashKeyCallbac
 	for i := range lru.buckets {
 		lru.buckets[i] = emptyBucket
 	}
-
-	return lru, nil
 }
 
 // hashToBucketPos converts a hash value into a position in the elements array.
