@@ -125,7 +125,7 @@ func (lru *ShardedLRU[K, V]) Len() (length int) {
 // Returns true, true if key was updated and eviction occurred.
 func (lru *ShardedLRU[K, V]) AddWithLifetime(key K, value V, lifetime time.Duration) (evicted bool) {
 	hash := lru.hash(key)
-	shard := hash & lru.mask
+	shard := (hash >> 16) & lru.mask
 
 	lru.mus[shard].Lock()
 	evicted = lru.lrus[shard].addWithLifetime(hash, key, value, lifetime)
@@ -151,7 +151,7 @@ func (lru *ShardedLRU[K, V]) Add(key K, value V) (evicted bool) {
 // recently used item.
 func (lru *ShardedLRU[K, V]) Get(key K) (value V, ok bool) {
 	hash := lru.hash(key)
-	shard := hash & lru.mask
+	shard := (hash >> 16) & lru.mask
 
 	lru.mus[shard].Lock()
 	value, ok = lru.lrus[shard].get(hash, key)
@@ -163,7 +163,7 @@ func (lru *ShardedLRU[K, V]) Get(key K) (value V, ok bool) {
 // Peek looks up a key's value from the cache, without changing its recent-ness.
 func (lru *ShardedLRU[K, V]) Peek(key K) (value V, ok bool) {
 	hash := lru.hash(key)
-	shard := hash & lru.mask
+	shard := (hash >> 16) & lru.mask
 
 	lru.mus[shard].RLock()
 	value, ok = lru.lrus[shard].peek(hash, key)
@@ -175,7 +175,7 @@ func (lru *ShardedLRU[K, V]) Peek(key K) (value V, ok bool) {
 // Contains checks for the existence of a key, without changing its recent-ness.
 func (lru *ShardedLRU[K, V]) Contains(key K) (ok bool) {
 	hash := lru.hash(key)
-	shard := hash & lru.mask
+	shard := (hash >> 16) & lru.mask
 
 	lru.mus[shard].RLock()
 	ok = lru.lrus[shard].contains(hash, key)
@@ -188,7 +188,7 @@ func (lru *ShardedLRU[K, V]) Contains(key K) (ok bool) {
 // The return value indicates whether the key existed or not.
 func (lru *ShardedLRU[K, V]) Remove(key K) (removed bool) {
 	hash := lru.hash(key)
-	shard := hash & lru.mask
+	shard := (hash >> 16) & lru.mask
 
 	lru.mus[shard].Lock()
 	removed = lru.lrus[shard].remove(hash, key)
