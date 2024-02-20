@@ -115,7 +115,6 @@ linters-settings:
       - octalLiteral
       - whyNoLint
       - wrapperFunc
-      - sloppyTestFuncName
       - sloppyReassign
       - uncheckedInlineErr # Experimental rule with high false positive rate.
 
