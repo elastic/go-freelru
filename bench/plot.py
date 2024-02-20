@@ -73,3 +73,4 @@ for bar in bars:
 
 plt.savefig('bench.png', bbox_inches='tight')
 plt.show()
+plt.close(fig)
