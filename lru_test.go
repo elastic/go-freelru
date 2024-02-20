@@ -298,3 +298,24 @@ func TestSyncedLRUAdd(t *testing.T) {
 		cache.Add(i, val)
 	}
 }
+
+func TestLRUMetrics(t *testing.T) {
+	cache := makeCache(t, 1, nil)
+	testMetrics(t, cache)
+}
+
+func testMetrics(t *testing.T, cache Cache[uint64, uint64]) {
+	cache.Add(1, 2) // insert
+	cache.Add(3, 4) // insert and eviction
+	cache.Get(1)    // miss
+	cache.Get(3)    // hit
+	cache.Remove(3) // removal
+
+	m := cache.Metrics()
+	FatalIf(t, m.Inserts != 2, "Unexpected inserts: %d (!= %d)", m.Inserts, 2)
+	FatalIf(t, m.Hits != 1, "Unexpected hits: %d (!= %d)", m.Hits, 1)
+	FatalIf(t, m.Misses != 1, "Unexpected misses: %d (!= %d)", m.Misses, 1)
+	FatalIf(t, m.Evictions != 1, "Unexpected evictions: %d (!= %d)", m.Evictions, 1)
+	FatalIf(t, m.Removals != 1, "Unexpected evictions: %d (!= %d)", m.Removals, 1)
+	FatalIf(t, m.Collisions != 0, "Unexpected collisions: %d (!= %d)", m.Collisions, 0)
+}

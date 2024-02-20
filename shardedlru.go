@@ -218,6 +218,45 @@ func (lru *ShardedLRU[K, V]) Purge() {
 	}
 }
 
+// Metrics returns the metrics of the cache.
+func (lru *ShardedLRU[K, V]) Metrics() Metrics {
+	metrics := Metrics{}
+
+	for shard := range lru.lrus {
+		lru.mus[shard].Lock()
+		m := lru.lrus[shard].Metrics()
+		lru.mus[shard].Unlock()
+
+		addMetrics(metrics, m)
+	}
+
+	return metrics
+}
+
+// ResetMetrics resets the metrics of the cache and returns the previous state.
+func (lru *ShardedLRU[K, V]) ResetMetrics() Metrics {
+	metrics := Metrics{}
+
+	for shard := range lru.lrus {
+		lru.mus[shard].Lock()
+		m := lru.lrus[shard].ResetMetrics()
+		lru.mus[shard].Unlock()
+
+		addMetrics(metrics, m)
+	}
+
+	return metrics
+}
+
+func addMetrics(dst, src Metrics) {
+	dst.Inserts += src.Inserts
+	dst.Collisions += src.Collisions
+	dst.Evictions += src.Evictions
+	dst.Removals += src.Removals
+	dst.Hits += src.Hits
+	dst.Misses += src.Misses
+}
+
 // just used for debugging
 func (lru *ShardedLRU[K, V]) dump() {
 	for shard := range lru.lrus {

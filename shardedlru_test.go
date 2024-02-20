@@ -37,8 +37,15 @@ func TestShardedRaceCondition(t *testing.T) {
 	call(func() { _ = lru.Remove(1) })
 	call(func() { _ = lru.Keys() })
 	call(func() { lru.Purge() })
+	call(func() { lru.Metrics() })
+	call(func() { _ = lru.ResetMetrics() })
 	call(func() { lru.dump() })
 	call(func() { lru.PrintStats() })
 
 	wg.Wait()
+}
+
+func TestShardedLRUMetrics(t *testing.T) {
+	cache, _ := NewSynced[uint64, uint64](1, hashUint64)
+	testMetrics(t, cache)
 }
