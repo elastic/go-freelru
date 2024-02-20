@@ -136,6 +136,22 @@ func (lru *SyncedLRU[K, V]) Purge() {
 	lru.mu.Unlock()
 }
 
+// Metrics returns the metrics of the cache.
+func (lru *SyncedLRU[K, V]) Metrics() Metrics {
+	lru.mu.Lock()
+	metrics := lru.lru.Metrics()
+	lru.mu.Unlock()
+	return metrics
+}
+
+// ResetMetrics resets the metrics of the cache and returns the previous state.
+func (lru *SyncedLRU[K, V]) ResetMetrics() Metrics {
+	lru.mu.Lock()
+	metrics := lru.lru.ResetMetrics()
+	lru.mu.Unlock()
+	return metrics
+}
+
 // just used for debugging
 func (lru *SyncedLRU[K, V]) dump() {
 	lru.mu.RLock()

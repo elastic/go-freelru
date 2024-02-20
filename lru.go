@@ -66,6 +66,7 @@ type LRU[K comparable, V any] struct {
 	onEvict  OnEvictCallback[K, V]
 	hash     HashKeyCallback[K]
 	lifetime time.Duration
+	metrics  Metrics
 
 	// used for element clearing after removal or expiration
 	emptyKey   K
@@ -76,11 +77,16 @@ type LRU[K comparable, V any] struct {
 	cap  uint32 // max number of elements in the cache
 	size uint32 // size of the element array (X% larger than cap)
 	mask uint32 // bitmask to avoid the costly idiv in hashToPos() if size is a 2^n value
+}
 
-	collisions uint64
-	inserts    uint64
-	evictions  uint64
-	removals   uint64
+// Metrics contains metrics about the cache.
+type Metrics struct {
+	Inserts    uint64
+	Collisions uint64
+	Evictions  uint64
+	Removals   uint64
+	Hits       uint64
+	Misses     uint64
 }
 
 var _ Cache[int, int] = (*LRU[int, int])(nil)
@@ -208,7 +214,6 @@ func (lru *LRU[K, V]) evict(pos uint32) {
 	lru.unlinkElement(pos)
 	lru.unlinkBucket(pos)
 	lru.len--
-	lru.evictions++
 
 	if lru.onEvict != nil {
 		// Save k/v for the eviction function.
@@ -260,7 +265,7 @@ func (lru *LRU[K, V]) insert(pos uint32, key K, value V, lifetime time.Duration)
 		lru.setHead(pos)
 	}
 	lru.len++
-	lru.inserts++
+	lru.metrics.Inserts++
 }
 
 func now() int64 {
@@ -325,6 +330,7 @@ func (lru *LRU[K, V]) addWithLifetime(hash uint32, key K, value V, lifetime time
 			// store the new entry at evicted position.
 			pos = lru.elements[lru.head].next
 			lru.evict(pos)
+			lru.metrics.Evictions++
 			evicted = true
 		}
 
@@ -351,7 +357,7 @@ func (lru *LRU[K, V]) addWithLifetime(hash uint32, key K, value V, lifetime time
 				lru.setHead(pos)
 			}
 			// count as insert, even if it's just an update
-			lru.inserts++
+			lru.metrics.Inserts++
 			return false
 		}
 
@@ -368,6 +374,7 @@ func (lru *LRU[K, V]) addWithLifetime(hash uint32, key K, value V, lifetime time
 		// store the new entry at evicted position.
 		pos = lru.elements[lru.head].next
 		lru.evict(pos)
+		lru.metrics.Evictions++
 		evicted = true
 		startPos = lru.buckets[bucketPos]
 		if startPos == emptyBucket {
@@ -388,7 +395,7 @@ func (lru *LRU[K, V]) addWithLifetime(hash uint32, key K, value V, lifetime time
 	if lru.elements[pos].prevBucket != pos {
 		// The bucket now contains more than 1 element.
 		// That means we have a collision.
-		lru.collisions++
+		lru.metrics.Collisions++
 	}
 	return evicted
 }
@@ -415,9 +422,11 @@ func (lru *LRU[K, V]) get(hash uint32, key K) (value V, ok bool) {
 			lru.unlinkElement(pos)
 			lru.setHead(pos)
 		}
+		lru.metrics.Hits++
 		return lru.elements[pos].value, ok
 	}
 
+	lru.metrics.Misses++
 	return
 }
 
@@ -456,7 +465,7 @@ func (lru *LRU[K, V]) remove(hash uint32, key K) (removed bool) {
 		// Key exists, update element to be the head element.
 		lru.evict(pos)
 		lru.move(pos, lru.len)
-		lru.removals++
+		lru.metrics.Removals++
 
 		// remove stale data to avoid memory leaks
 		lru.clearKeyAndValue(lru.len)
@@ -489,10 +498,19 @@ func (lru *LRU[K, V]) Purge() {
 	}
 
 	lru.len = 0
-	lru.collisions = 0
-	lru.inserts = 0
-	lru.evictions = 0
-	lru.removals = 0
+	lru.metrics = Metrics{}
+}
+
+// Metrics returns the metrics of the cache.
+func (lru *LRU[K, V]) Metrics() Metrics {
+	return lru.metrics
+}
+
+// ResetMetrics resets the metrics of the cache and returns the previous state.
+func (lru *LRU[K, V]) ResetMetrics() Metrics {
+	metrics := lru.metrics
+	lru.metrics = Metrics{}
+	return metrics
 }
 
 // just used for debugging
@@ -519,8 +537,9 @@ func (lru *LRU[K, V]) dump() {
 }
 
 func (lru *LRU[K, V]) PrintStats() {
-	fmt.Printf("Inserts: %d Collisions: %d (%.2f%%) Evictions: %d Removals: %d\n",
-		lru.inserts, lru.collisions,
-		float64(lru.collisions)/float64(lru.inserts)*100,
-		lru.evictions, lru.removals)
+	m := &lru.metrics
+	fmt.Printf("Inserts: %d Collisions: %d (%.2f%%) Evictions: %d Removals: %d Hits: %d (%.2f%%) Misses: %d\n",
+		m.Inserts, m.Collisions, float64(m.Collisions)/float64(m.Inserts)*100,
+		m.Evictions, m.Removals,
+		m.Hits, float64(m.Hits)/float64(m.Hits+m.Misses)*100, m.Misses)
 }

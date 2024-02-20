@@ -58,4 +58,10 @@ type Cache[K comparable, V any] interface {
 
 	// Purge purges all data (key and value) from the LRU.
 	Purge()
+
+	// Metrics returns the metrics of the cache.
+	Metrics() Metrics
+
+	// ResetMetrics resets the metrics of the cache and returns the previous state.
+	ResetMetrics() Metrics
 }
