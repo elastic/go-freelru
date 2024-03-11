@@ -174,6 +174,10 @@ func (lru *LRU[K, V]) hashToPos(hash uint32) (bucketPos, elemPos uint32) {
 
 // setHead links the element as the head into the list.
 func (lru *LRU[K, V]) setHead(pos uint32) {
+	// Both calls to setHead() check beforehand that pos != lru.head.
+	// So if you run into this situation, you likely use FreeLRU in a concurrent situation
+	// without proper locking. It requires a write lock, even around Get().
+	// But better use SyncedLRU or SharedLRU in such a case.
 	if pos == lru.head {
 		panic(pos)
 	}
