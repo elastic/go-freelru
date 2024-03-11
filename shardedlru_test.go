@@ -2,8 +2,11 @@
 package freelru
 
 import (
+	"fmt"
+	"math/rand"
 	"sync"
 	"testing"
+	"time"
 )
 
 // TestShardedRaceCondition tests that the sharded LRU is safe to use concurrently.
@@ -48,4 +51,52 @@ func TestShardedRaceCondition(t *testing.T) {
 func TestShardedLRUMetrics(t *testing.T) {
 	cache, _ := NewSynced[uint64, uint64](1, hashUint64)
 	testMetrics(t, cache)
+}
+
+func TestStressWithLifetime(t *testing.T) {
+	const CAP = 1024
+
+	lru, err := NewSharded[string, int](CAP, hashString)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	lru.SetLifetime(time.Millisecond * 10)
+
+	const NTHREADS = 10
+	const RUNS = 1000
+
+	wg := sync.WaitGroup{}
+
+	for i := 0; i < NTHREADS; i++ {
+		wg.Add(1)
+		go func() {
+			for i := 0; i < RUNS; i++ {
+				lru.Add(fmt.Sprintf("key-%d", rand.Int()%1000), rand.Int()) //nolint:gosec
+				time.Sleep(time.Millisecond * 1)
+			}
+			wg.Done()
+		}()
+	}
+
+	for i := 0; i < NTHREADS; i++ {
+		wg.Add(1)
+		go func() {
+			for i := 0; i < RUNS; i++ {
+				_, _ = lru.Get(fmt.Sprintf("key-%d", rand.Int()%1000)) //nolint:gosec
+				time.Sleep(time.Millisecond * 1)
+			}
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+}
+
+// hashString is a simple but sufficient string hash function.
+func hashString(s string) uint32 {
+	var h uint32
+	for i := 0; i < len(s); i++ {
+		h = h*31 + uint32(s[i])
+	}
+	return h
 }
