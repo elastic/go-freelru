@@ -49,7 +49,7 @@ func TestShardedRaceCondition(t *testing.T) {
 }
 
 func TestShardedLRUMetrics(t *testing.T) {
-	cache, _ := NewSynced[uint64, uint64](1, hashUint64)
+	cache, _ := NewSharded[uint64, uint64](1, hashUint64)
 	testMetrics(t, cache)
 }
 

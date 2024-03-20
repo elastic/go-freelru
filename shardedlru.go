@@ -227,7 +227,7 @@ func (lru *ShardedLRU[K, V]) Metrics() Metrics {
 		m := lru.lrus[shard].Metrics()
 		lru.mus[shard].Unlock()
 
-		addMetrics(metrics, m)
+		addMetrics(&metrics, m)
 	}
 
 	return metrics
@@ -242,13 +242,13 @@ func (lru *ShardedLRU[K, V]) ResetMetrics() Metrics {
 		m := lru.lrus[shard].ResetMetrics()
 		lru.mus[shard].Unlock()
 
-		addMetrics(metrics, m)
+		addMetrics(&metrics, m)
 	}
 
 	return metrics
 }
 
-func addMetrics(dst, src Metrics) {
+func addMetrics(dst *Metrics, src Metrics) {
 	dst.Inserts += src.Inserts
 	dst.Collisions += src.Collisions
 	dst.Evictions += src.Evictions
