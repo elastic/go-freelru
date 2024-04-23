@@ -38,6 +38,7 @@ func TestShardedRaceCondition(t *testing.T) {
 	call(func() { _, _ = lru.Peek(1) })
 	call(func() { _ = lru.Contains(1) })
 	call(func() { _ = lru.Remove(1) })
+	call(func() { _, _, _ = lru.RemoveOldest() })
 	call(func() { _ = lru.Keys() })
 	call(func() { lru.Purge() })
 	call(func() { lru.Metrics() })
