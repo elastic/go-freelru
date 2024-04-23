@@ -227,7 +227,7 @@ func (lru *LRU[K, V]) evict(pos uint32) {
 	}
 }
 
-// Move element from position old to new.
+// Move element from position 'from' to position 'to'.
 // That avoids 'gaps' and new elements can always be simply appended.
 func (lru *LRU[K, V]) move(to, from uint32) {
 	if to == from {
@@ -324,7 +324,8 @@ func (lru *LRU[K, V]) AddWithLifetime(key K, value V, lifetime time.Duration) (e
 	return lru.addWithLifetime(lru.hash(key), key, value, lifetime)
 }
 
-func (lru *LRU[K, V]) addWithLifetime(hash uint32, key K, value V, lifetime time.Duration) (evicted bool) {
+func (lru *LRU[K, V]) addWithLifetime(hash uint32, key K, value V,
+	lifetime time.Duration) (evicted bool) {
 	bucketPos, startPos := lru.hashToPos(hash)
 	if startPos == emptyBucket {
 		pos := lru.len
@@ -460,6 +461,7 @@ func (lru *LRU[K, V]) contains(hash uint32, key K) (ok bool) {
 
 // Remove removes the key from the cache.
 // The return value indicates whether the key existed or not.
+// The evict function is being called if the key existed.
 func (lru *LRU[K, V]) Remove(key K) (removed bool) {
 	return lru.remove(lru.hash(key), key)
 }
@@ -477,6 +479,22 @@ func (lru *LRU[K, V]) remove(hash uint32, key K) (removed bool) {
 	}
 
 	return
+}
+
+// RemoveOldest removes the oldest entry from the cache.
+// Key, value and an indicator of whether the entry has been removed is returned.
+// The evict function is being called if the key existed.
+func (lru *LRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
+	if lru.len == 0 {
+		return lru.emptyKey, lru.emptyValue, false
+	}
+	pos := lru.elements[lru.head].next
+	key = lru.elements[pos].key
+	value = lru.elements[pos].value
+	lru.evict(pos)
+	lru.move(pos, lru.len)
+	lru.metrics.Removals++
+	return key, value, true
 }
 
 // Keys returns a slice of the keys in the cache, from oldest to newest.

@@ -29,11 +29,13 @@ func (lru *SyncedLRU[K, V]) SetOnEvict(onEvict OnEvictCallback[K, V]) {
 }
 
 // NewSynced creates a new thread-safe LRU hashmap with the given capacity.
-func NewSynced[K comparable, V any](capacity uint32, hash HashKeyCallback[K]) (*SyncedLRU[K, V], error) {
+func NewSynced[K comparable, V any](capacity uint32, hash HashKeyCallback[K]) (*SyncedLRU[K, V],
+	error) {
 	return NewSyncedWithSize[K, V](capacity, capacity, hash)
 }
 
-func NewSyncedWithSize[K comparable, V any](capacity, size uint32, hash HashKeyCallback[K]) (*SyncedLRU[K, V], error) {
+func NewSyncedWithSize[K comparable, V any](capacity, size uint32,
+	hash HashKeyCallback[K]) (*SyncedLRU[K, V], error) {
 	lru, err := NewWithSize[K, V](capacity, size, hash)
 	if err != nil {
 		return nil, err
@@ -110,11 +112,23 @@ func (lru *SyncedLRU[K, V]) Contains(key K) (ok bool) {
 
 // Remove removes the key from the cache.
 // The return value indicates whether the key existed or not.
+// The evict function is being called if the key existed.
 func (lru *SyncedLRU[K, V]) Remove(key K) (removed bool) {
 	hash := lru.lru.hash(key)
 
 	lru.mu.Lock()
 	removed = lru.lru.remove(hash, key)
+	lru.mu.Unlock()
+
+	return
+}
+
+// RemoveOldest removes the oldest entry from the cache.
+// Key, value and an indicator of whether the entry has been removed is returned.
+// The evict function is being called if the key existed.
+func (lru *SyncedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
+	lru.mu.Lock()
+	key, value, removed = lru.lru.RemoveOldest()
 	lru.mu.Unlock()
 
 	return

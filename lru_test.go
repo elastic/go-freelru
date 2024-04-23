@@ -48,7 +48,8 @@ func hashUint64(i uint64) uint32 {
 	return h
 }
 
-func setupCache(t *testing.T, cache Cache[uint64, uint64], evictCounter *uint64) Cache[uint64, uint64] {
+func setupCache(t *testing.T, cache Cache[uint64, uint64],
+	evictCounter *uint64) Cache[uint64, uint64] {
 	onEvict := func(k uint64, v uint64) {
 		FatalIf(t, k+1 != v, "Evict value not matching (%v+1 != %v)", k, v)
 		if evictCounter != nil {
@@ -93,8 +94,10 @@ func testCache(t *testing.T, cAP uint64, cache Cache[uint64, uint64], evictCount
 	for i := uint64(0); i < cAP*2; i++ {
 		cache.Add(i, i+1)
 	}
-	FatalIf(t, cache.Len() != int(cAP), "Unexpected number of entries: %v (!= %d)", cache.Len(), cAP)
-	FatalIf(t, *evictCounter != cAP, "Unexpected number of evictions: %v (!= %d)", evictCounter, cAP)
+	FatalIf(t, cache.Len() != int(cAP), "Unexpected number of entries: %v (!= %d)", cache.Len(),
+		cAP)
+	FatalIf(t, *evictCounter != cAP, "Unexpected number of evictions: %v (!= %d)", evictCounter,
+		cAP)
 
 	keys := cache.Keys()
 	for i, k := range keys {
@@ -158,6 +161,29 @@ func TestSyncedLRU_Remove(t *testing.T) {
 
 	FatalIf(t, !cache.Remove(1), "Failed to remove most recent entry %d", 1)
 	FatalIf(t, !cache.Remove(3), "Failed to remove most recent entry %d", 3)
+	FatalIf(t, evictCounter != 2, "Unexpected # of evictions: %d (!= %d)", evictCounter, 2)
+	FatalIf(t, cache.Len() != 0, "Unexpected # of entries: %d (!= %d)", cache.Len(), 0)
+}
+
+func TestLRU_RemoveOldest(t *testing.T) {
+	evictCounter := uint64(0)
+	cache := makeCache(t, 2, &evictCounter)
+	cache.Add(1, 2)
+	cache.Add(3, 4)
+
+	k, v, ok := cache.RemoveOldest()
+	FatalIf(t, !ok, "Failed to remove oldest entry")
+	FatalIf(t, k != 1, "Unexpected key=%d (!= %d)", k, 1)
+	FatalIf(t, v != 2, "Unexpected value: %d (!= %d)", v, 2)
+
+	k, v, ok = cache.RemoveOldest()
+	FatalIf(t, !ok, "Failed to remove oldest entry")
+	FatalIf(t, k != 3, "Unexpected key=%d (!= %d)", k, 3)
+	FatalIf(t, v != 4, "Unexpected value: %d (!= %d)", v, 4)
+
+	_, _, ok = cache.RemoveOldest()
+	FatalIf(t, ok, "Unexpectedly removing oldest entry was ok")
+
 	FatalIf(t, evictCounter != 2, "Unexpected # of evictions: %d (!= %d)", evictCounter, 2)
 	FatalIf(t, cache.Len() != 0, "Unexpected # of entries: %d (!= %d)", cache.Len(), 0)
 }

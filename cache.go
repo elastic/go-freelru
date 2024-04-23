@@ -53,6 +53,9 @@ type Cache[K comparable, V any] interface {
 	// The return value indicates whether the key existed or not.
 	Remove(key K) bool
 
+	// RemoveOldest removes the oldest entry from the cache.
+	RemoveOldest() (key K, value V, removed bool)
+
 	// Keys returns a slice of the keys in the cache, from oldest to newest.
 	Keys() []K
 
