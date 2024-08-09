@@ -39,6 +39,7 @@ linters:
     - depguard
     - dupword
     - durationcheck # might be worth fixing
+    - err113
     - errname # might be worth fixing
     - errorlint # might be worth fixing
     - exhaustive
@@ -53,7 +54,6 @@ linters:
     - gocyclo
     - godot
     - godox # complains about TODO etc
-    - goerr113
     - gofumpt
     - goimports # might be worth fixing
     - golint # might be worth fixing
