@@ -9,7 +9,7 @@ require (
 	github.com/coocood/freecache v1.2.4
 	github.com/dgraph-io/ristretto v0.1.1
 	github.com/dolthub/maphash v0.1.0
-	github.com/elastic/go-freelru v0.9.0
+	github.com/elastic/go-freelru v0.13.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/orcaman/concurrent-map/v2 v2.0.1
 	github.com/phuslu/lru v0.0.0-20240102115514-145663889ac0
