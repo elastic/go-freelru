@@ -43,7 +43,6 @@ linters:
     - errname # might be worth fixing
     - errorlint # might be worth fixing
     - exhaustive
-    - exhaustivestruct
     - exhaustruct
     - forcetypeassert # might be worth fixing
     - funlen
@@ -56,10 +55,8 @@ linters:
     - godox # complains about TODO etc
     - gofumpt
     - goimports # might be worth fixing
-    - golint # might be worth fixing
     - gomnd
     - gomoddirectives
-    - ifshort
     - interfacebloat
     - ireturn
     - maintidx
@@ -72,9 +69,7 @@ linters:
     - noctx # might be worth fixing
     - nolintlint
     - nonamedreturns
-    - nosnakecase
     - paralleltest
-    - scopelint # might be worth fixing
     - sqlclosecheck # might be worth fixing
     - tagalign
     - tagliatelle
@@ -88,16 +83,7 @@ linters:
     - wrapcheck
     - forbidigo
     # the following linters are deprecated
-    - exhaustivestruct
-    - scopelint
-    - nosnakecase
-    - interfacer
-    - maligned
-    - ifshort
-    - structcheck # might be worth fixing
-    - deadcode
-    - golint
-    - varcheck
+    - execinquery
     # we don't want to change code to Go 1.22+ yet
     - intrange
     - copyloopvar
