@@ -117,7 +117,6 @@ linters-settings:
     min-complexity: 15
   govet:
     enable-all: true
-    check-shadowing: true
     disable:
       - fieldalignment
     settings:
