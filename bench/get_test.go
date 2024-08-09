@@ -329,7 +329,7 @@ func BenchmarkParallelBigCacheGet(b *testing.B) {
 }
 
 func BenchmarkPhusluGet(b *testing.B) {
-	cache := phuslu.New[int, int](CAP)
+	cache := phuslu.NewLRUCache[int, int](CAP)
 
 	for i := 0; i < CAP; i++ {
 		_, _ = cache.Set(intKeys[i], intKeys[i])
@@ -344,7 +344,7 @@ func BenchmarkPhusluGet(b *testing.B) {
 }
 
 func BenchmarkParallelPhusluGet(b *testing.B) {
-	cache := phuslu.New[int, int](CAP)
+	cache := phuslu.NewLRUCache[int, int](CAP)
 
 	for i := 0; i < CAP; i++ {
 		_, _ = cache.Set(intKeys[i], intKeys[i])

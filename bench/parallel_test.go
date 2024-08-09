@@ -203,7 +203,7 @@ func BenchmarkParallelOracamanMapAdd_int_int128(b *testing.B) {
 }
 
 func runParallelPhusluAddInt[K comparable, V any](b *testing.B) {
-	cache := phuslu.New[K, V](CAP)
+	cache := phuslu.NewLRUCache[K, V](CAP)
 
 	var val V
 	keys := getParallelKeys[K]()
