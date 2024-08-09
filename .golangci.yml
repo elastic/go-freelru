@@ -1,8 +1,8 @@
 service:
   golangci-lint-version: 1.48.x
 
-run:
-  skip-dirs:
+issues:
+  exclude-dirs:
     - artifacts
     - build-targets
     - design
@@ -39,10 +39,10 @@ linters:
     - depguard
     - dupword
     - durationcheck # might be worth fixing
+    - err113
     - errname # might be worth fixing
     - errorlint # might be worth fixing
     - exhaustive
-    - exhaustivestruct
     - exhaustruct
     - forcetypeassert # might be worth fixing
     - funlen
@@ -53,17 +53,15 @@ linters:
     - gocyclo
     - godot
     - godox # complains about TODO etc
-    - goerr113
     - gofumpt
     - goimports # might be worth fixing
-    - golint # might be worth fixing
     - gomnd
     - gomoddirectives
-    - ifshort
     - interfacebloat
     - ireturn
     - maintidx
     - makezero
+    - mnd
     - nestif
     - nilerr # might be worth fixing
     - nilnil
@@ -71,9 +69,7 @@ linters:
     - noctx # might be worth fixing
     - nolintlint
     - nonamedreturns
-    - nosnakecase
     - paralleltest
-    - scopelint # might be worth fixing
     - sqlclosecheck # might be worth fixing
     - tagalign
     - tagliatelle
@@ -87,16 +83,10 @@ linters:
     - wrapcheck
     - forbidigo
     # the following linters are deprecated
-    - exhaustivestruct
-    - scopelint
-    - nosnakecase
-    - interfacer
-    - maligned
-    - ifshort
-    - structcheck # might be worth fixing
-    - deadcode
-    - golint
-    - varcheck
+    - execinquery
+    # we don't want to change code to Go 1.22+ yet
+    - intrange
+    - copyloopvar
 
 linters-settings:
   goconst:
@@ -127,7 +117,6 @@ linters-settings:
     min-complexity: 15
   govet:
     enable-all: true
-    check-shadowing: true
     disable:
       - fieldalignment
     settings:
