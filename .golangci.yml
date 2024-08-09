@@ -64,6 +64,7 @@ linters:
     - ireturn
     - maintidx
     - makezero
+    - mnd
     - nestif
     - nilerr # might be worth fixing
     - nilnil
