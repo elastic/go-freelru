@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/cloudflare/golibs v0.0.0-20210909181612-21743d7dd02a
+	github.com/cloudflare/golibs v0.0.0-20240916140616-558c04120a4e
 	github.com/coocood/freecache v1.2.4
 	github.com/dgraph-io/ristretto v0.1.1
 	github.com/dolthub/maphash v0.1.0
