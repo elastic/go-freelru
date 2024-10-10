@@ -141,8 +141,8 @@ func BenchmarkParallelFreeCacheAdd_int_int128(b *testing.B) {
 	})
 }
 
-func runParallelRistrettoLRUAddInt[K comparable, V any](b *testing.B) {
-	cache, err := ristretto.NewCache(&ristretto.Config{
+func runParallelRistrettoLRUAddInt[K int, V any](b *testing.B) {
+	cache, err := ristretto.NewCache(&ristretto.Config[K, V]{
 		NumCounters: CAP * 10, // number of keys to track frequency of.
 		MaxCost:     CAP * 16, // maximum cost of cache.
 		BufferItems: 64,       // number of keys per Get buffer.

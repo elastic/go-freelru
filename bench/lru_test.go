@@ -422,7 +422,7 @@ func BenchmarkFreeCacheAdd_int_string(b *testing.B) {
 }
 
 func runRistrettoLRUAddInt[V any](b *testing.B) {
-	cache, err := ristretto.NewCache(&ristretto.Config{
+	cache, err := ristretto.NewCache(&ristretto.Config[int, V]{
 		NumCounters: CAP * 10, // number of keys to track frequency of.
 		MaxCost:     CAP,      // maximum cost of cache.
 		BufferItems: 64,       // number of keys per Get buffer.
@@ -451,7 +451,7 @@ func BenchmarkRistrettoAdd_int_int128(b *testing.B) {
 }
 
 func BenchmarkRistrettoAdd_uint32_uint64(b *testing.B) {
-	cache, err := ristretto.NewCache(&ristretto.Config{
+	cache, err := ristretto.NewCache(&ristretto.Config[uint32, uint64]{
 		NumCounters: CAP * 10, // number of keys to track frequency of.
 		MaxCost:     CAP,      // maximum cost of cache.
 		BufferItems: 64,       // number of keys per Get buffer.
@@ -472,7 +472,7 @@ func BenchmarkRistrettoAdd_uint32_uint64(b *testing.B) {
 }
 
 func BenchmarkRistrettoAdd_string_uint64(b *testing.B) {
-	cache, err := ristretto.NewCache(&ristretto.Config{
+	cache, err := ristretto.NewCache(&ristretto.Config[string, uint64]{
 		NumCounters: CAP * 10, // number of keys to track frequency of.
 		MaxCost:     CAP,      // maximum cost of cache.
 		BufferItems: 64,       // number of keys per Get buffer.
@@ -493,7 +493,7 @@ func BenchmarkRistrettoAdd_string_uint64(b *testing.B) {
 }
 
 func BenchmarkRistrettoAdd_int_string(b *testing.B) {
-	cache, err := ristretto.NewCache(&ristretto.Config{
+	cache, err := ristretto.NewCache(&ristretto.Config[int, string]{
 		NumCounters: CAP * 10, // number of keys to track frequency of.
 		MaxCost:     CAP,      // maximum cost of cache.
 		BufferItems: 64,       // number of keys per Get buffer.
