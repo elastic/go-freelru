@@ -221,7 +221,7 @@ func BenchmarkParallelFreeCacheGet(b *testing.B) {
 }
 
 func BenchmarkRistrettoGet(b *testing.B) {
-	cache, err := ristretto.NewCache(&ristretto.Config{
+	cache, err := ristretto.NewCache(&ristretto.Config[int, int]{
 		NumCounters: CAP * 10, // number of keys to track frequency of.
 		MaxCost:     CAP,      // maximum cost of cache.
 		BufferItems: 64,       // number of keys per Get buffer.
@@ -243,7 +243,7 @@ func BenchmarkRistrettoGet(b *testing.B) {
 }
 
 func BenchmarkParallelRistrettoGet(b *testing.B) {
-	cache, err := ristretto.NewCache(&ristretto.Config{
+	cache, err := ristretto.NewCache(&ristretto.Config[int, int]{
 		NumCounters: CAP * 10, // number of keys to track frequency of.
 		MaxCost:     CAP,      // maximum cost of cache.
 		BufferItems: 64,       // number of keys per Get buffer.
