@@ -168,9 +168,9 @@ func (lru *ShardedLRU[K, V]) Peek(key K) (value V, ok bool) {
 	hash := lru.hash(key)
 	shard := (hash >> 16) & lru.mask
 
-	lru.mus[shard].RLock()
+	lru.mus[shard].Lock()
 	value, ok = lru.lrus[shard].peek(hash, key)
-	lru.mus[shard].RUnlock()
+	lru.mus[shard].Unlock()
 
 	return
 }
@@ -180,9 +180,9 @@ func (lru *ShardedLRU[K, V]) Contains(key K) (ok bool) {
 	hash := lru.hash(key)
 	shard := (hash >> 16) & lru.mask
 
-	lru.mus[shard].RLock()
+	lru.mus[shard].Lock()
 	ok = lru.lrus[shard].contains(hash, key)
-	lru.mus[shard].RUnlock()
+	lru.mus[shard].Unlock()
 
 	return
 }

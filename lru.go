@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-// OnEvictCallback is the function type for Config.OnEvict.
+// OnEvictCallback is the type for the eviction function.
 type OnEvictCallback[K comparable, V any] func(K, V)
 
 // HashKeyCallback is the function that creates a hash from the passed key.
@@ -99,6 +99,11 @@ func (lru *LRU[K, V]) SetLifetime(lifetime time.Duration) {
 
 // SetOnEvict sets the OnEvict callback function.
 // The onEvict function is called for each evicted lru entry.
+// Eviction happens
+// - when the cache is full and a new entry is added (oldest entry is evicted)
+// - when an entry is removed by Remove() or RemoveOldest()
+// - when an entry is recognized as expired
+// - when Purge() is called
 func (lru *LRU[K, V]) SetOnEvict(onEvict OnEvictCallback[K, V]) {
 	lru.onEvict = onEvict
 }
@@ -299,7 +304,7 @@ func (lru *LRU[K, V]) findKey(hash uint32, key K) (uint32, bool) {
 	for {
 		if key == lru.elements[pos].key {
 			if lru.elements[pos].expire != 0 && lru.elements[pos].expire <= now() {
-				lru.clearKeyAndValue(pos)
+				lru.removeAt(pos)
 				return emptyBucket, false
 			}
 			return pos, true
@@ -461,29 +466,32 @@ func (lru *LRU[K, V]) contains(hash uint32, key K) (ok bool) {
 
 // Remove removes the key from the cache.
 // The return value indicates whether the key existed or not.
-// The evict function is being called if the key existed.
+// The evict function is called for the removed entry.
 func (lru *LRU[K, V]) Remove(key K) (removed bool) {
 	return lru.remove(lru.hash(key), key)
 }
 
 func (lru *LRU[K, V]) remove(hash uint32, key K) (removed bool) {
 	if pos, ok := lru.findKey(hash, key); ok {
-		// Key exists, update element to be the head element.
-		lru.evict(pos)
-		lru.move(pos, lru.len)
-		lru.metrics.Removals++
-
-		// remove stale data to avoid memory leaks
-		lru.clearKeyAndValue(lru.len)
+		lru.removeAt(pos)
 		return ok
 	}
 
 	return
 }
 
+func (lru *LRU[K, V]) removeAt(pos uint32) {
+	lru.evict(pos)
+	lru.move(pos, lru.len)
+	lru.metrics.Removals++
+
+	// remove stale data to avoid memory leaks
+	lru.clearKeyAndValue(lru.len)
+}
+
 // RemoveOldest removes the oldest entry from the cache.
 // Key, value and an indicator of whether the entry has been removed is returned.
-// The evict function is being called if the key existed.
+// The evict function is called for the removed entry.
 func (lru *LRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 	if lru.len == 0 {
 		return lru.emptyKey, lru.emptyValue, false
@@ -491,9 +499,7 @@ func (lru *LRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 	pos := lru.elements[lru.head].next
 	key = lru.elements[pos].key
 	value = lru.elements[pos].value
-	lru.evict(pos)
-	lru.move(pos, lru.len)
-	lru.metrics.Removals++
+	lru.removeAt(pos)
 	return key, value, true
 }
 
@@ -509,17 +515,14 @@ func (lru *LRU[K, V]) Keys() []K {
 }
 
 // Purge purges all data (key and value) from the LRU.
+// If the eviction function has been set, it is called for each item in the cache.
 func (lru *LRU[K, V]) Purge() {
-	for i := range lru.buckets {
-		lru.buckets[i] = emptyBucket
+	if lru.onEvict != nil {
+		for i := uint32(0); i < lru.len; i++ {
+			_, _, _ = lru.RemoveOldest()
+		}
 	}
 
-	for i := range lru.elements {
-		lru.elements[i].key = lru.emptyKey
-		lru.elements[i].value = lru.emptyValue
-	}
-
-	lru.len = 0
 	lru.metrics = Metrics{}
 }
 
