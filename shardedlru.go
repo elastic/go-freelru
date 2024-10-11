@@ -236,6 +236,16 @@ func (lru *ShardedLRU[K, V]) Purge() {
 	}
 }
 
+// PurgeExpired purges all expired items from the LRU.
+// If the eviction function has been set, it is called for each expired item.
+func (lru *ShardedLRU[K, V]) PurgeExpired() {
+	for shard := range lru.lrus {
+		lru.mus[shard].Lock()
+		lru.lrus[shard].PurgeExpired()
+		lru.mus[shard].Unlock()
+	}
+}
+
 // Metrics returns the metrics of the cache.
 func (lru *ShardedLRU[K, V]) Metrics() Metrics {
 	metrics := Metrics{}

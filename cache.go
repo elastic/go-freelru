@@ -62,6 +62,10 @@ type Cache[K comparable, V any] interface {
 	// Purge purges all data (key and value) from the LRU.
 	Purge()
 
+	// PurgeExpired purges all expired items from the LRU.
+	// If the eviction function has been set, it is called for each expired item.
+	PurgeExpired()
+
 	// Metrics returns the metrics of the cache.
 	Metrics() Metrics
 

@@ -505,6 +505,8 @@ func (lru *LRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 
 // Keys returns a slice of the keys in the cache, from oldest to newest.
 func (lru *LRU[K, V]) Keys() []K {
+	lru.PurgeExpired()
+
 	keys := make([]K, 0, lru.len)
 	pos := lru.elements[lru.head].next
 	for i := uint32(0); i < lru.len; i++ {
@@ -516,14 +518,27 @@ func (lru *LRU[K, V]) Keys() []K {
 
 // Purge purges all data (key and value) from the LRU.
 // If the eviction function has been set, it is called for each item in the cache.
+// The LRU metrics are reset.
 func (lru *LRU[K, V]) Purge() {
-	if lru.onEvict != nil {
-		for i := uint32(0); i < lru.len; i++ {
-			_, _, _ = lru.RemoveOldest()
-		}
+	for i := uint32(0); i < lru.len; i++ {
+		_, _, _ = lru.RemoveOldest()
 	}
 
 	lru.metrics = Metrics{}
+}
+
+// PurgeExpired purges all expired items from the LRU.
+// If the eviction function has been set, it is called for each expired item.
+func (lru *LRU[K, V]) PurgeExpired() {
+	for i := uint32(0); i < lru.len; i++ {
+		pos := lru.elements[lru.head].next
+		if lru.elements[pos].expire != 0 {
+			if lru.elements[pos].expire > now() {
+				return // no more expired items
+			}
+			lru.removeAt(pos)
+		}
+	}
 }
 
 // Metrics returns the metrics of the cache.

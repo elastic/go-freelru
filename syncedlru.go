@@ -150,6 +150,14 @@ func (lru *SyncedLRU[K, V]) Purge() {
 	lru.mu.Unlock()
 }
 
+// PurgeExpired purges all expired items from the LRU.
+// If the eviction function has been set, it is called for each expired item.
+func (lru *SyncedLRU[K, V]) PurgeExpired() {
+	lru.mu.Lock()
+	lru.lru.PurgeExpired()
+	lru.mu.Unlock()
+}
+
 // Metrics returns the metrics of the cache.
 func (lru *SyncedLRU[K, V]) Metrics() Metrics {
 	lru.mu.Lock()
