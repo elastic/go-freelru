@@ -29,7 +29,7 @@ func TestShardedRaceCondition(t *testing.T) {
 		}()
 	}
 
-	call(func() { lru.SetLifetime(0) })
+	call(func() { lru.SetLifetime(1) })
 	call(func() { lru.SetOnEvict(nil) })
 	call(func() { _ = lru.Len() })
 	call(func() { _ = lru.AddWithLifetime(1, 1, 0) })
@@ -41,6 +41,7 @@ func TestShardedRaceCondition(t *testing.T) {
 	call(func() { _, _, _ = lru.RemoveOldest() })
 	call(func() { _ = lru.Keys() })
 	call(func() { lru.Purge() })
+	call(func() { lru.PurgeExpired() })
 	call(func() { lru.Metrics() })
 	call(func() { _ = lru.ResetMetrics() })
 	call(func() { lru.dump() })
