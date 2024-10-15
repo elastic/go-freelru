@@ -39,28 +39,43 @@ type Cache[K comparable, V any] interface {
 	// Returns true, true if key was updated and eviction occurred.
 	Add(key K, value V) (evicted bool)
 
-	// Get retrieves an element from map under given key.
+	// Get returns the value associated with the key, setting it as the most
+	// recently used item.
+	// If the found cache item is already expired, the evict function is called
+	// and the return value indicates that the key was not found.
 	Get(key K) (V, bool)
 
-	// Peek retrieves an element from map under given key without updating the
-	// "recently used"-ness of that key.
+	// Peek looks up a key's value from the cache, without changing its recent-ness.
+	// If the found entry is already expired, the evict function is called.
 	Peek(key K) (V, bool)
 
 	// Contains checks for the existence of a key, without changing its recent-ness.
+	// If the found entry is already expired, the evict function is called.
 	Contains(key K) bool
 
-	// Remove removes an element from the map.
+	// Remove removes the key from the cache.
 	// The return value indicates whether the key existed or not.
+	// The evict function is called for the removed entry.
 	Remove(key K) bool
 
 	// RemoveOldest removes the oldest entry from the cache.
+	// Key, value and an indicator of whether the entry has been removed is returned.
+	// The evict function is called for the removed entry.
 	RemoveOldest() (key K, value V, removed bool)
 
 	// Keys returns a slice of the keys in the cache, from oldest to newest.
+	// Expired entries are not included.
+	// The evict function is called for each expired item.
 	Keys() []K
 
 	// Purge purges all data (key and value) from the LRU.
+	// The evict function is called for each expired item.
+	// The LRU metrics are reset.
 	Purge()
+
+	// PurgeExpired purges all expired items from the LRU.
+	// The evict function is called for each expired item.
+	PurgeExpired()
 
 	// Metrics returns the metrics of the cache.
 	Metrics() Metrics

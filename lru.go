@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-// OnEvictCallback is the function type for Config.OnEvict.
+// OnEvictCallback is the type for the eviction function.
 type OnEvictCallback[K comparable, V any] func(K, V)
 
 // HashKeyCallback is the function that creates a hash from the passed key.
@@ -99,6 +99,11 @@ func (lru *LRU[K, V]) SetLifetime(lifetime time.Duration) {
 
 // SetOnEvict sets the OnEvict callback function.
 // The onEvict function is called for each evicted lru entry.
+// Eviction happens
+// - when the cache is full and a new entry is added (oldest entry is evicted)
+// - when an entry is removed by Remove() or RemoveOldest()
+// - when an entry is recognized as expired
+// - when Purge() is called
 func (lru *LRU[K, V]) SetOnEvict(onEvict OnEvictCallback[K, V]) {
 	lru.onEvict = onEvict
 }
@@ -299,7 +304,7 @@ func (lru *LRU[K, V]) findKey(hash uint32, key K) (uint32, bool) {
 	for {
 		if key == lru.elements[pos].key {
 			if lru.elements[pos].expire != 0 && lru.elements[pos].expire <= now() {
-				lru.clearKeyAndValue(pos)
+				lru.removeAt(pos)
 				return emptyBucket, false
 			}
 			return pos, true
@@ -415,8 +420,10 @@ func (lru *LRU[K, V]) add(hash uint32, key K, value V) (evicted bool) {
 	return lru.addWithLifetime(hash, key, value, lru.lifetime)
 }
 
-// Get looks up a key's value from the cache, setting it as the most
+// Get returns the value associated with the key, setting it as the most
 // recently used item.
+// If the found cache item is already expired, the evict function is called
+// and the return value indicates that the key was not found.
 func (lru *LRU[K, V]) Get(key K) (value V, ok bool) {
 	return lru.get(lru.hash(key), key)
 }
@@ -436,6 +443,7 @@ func (lru *LRU[K, V]) get(hash uint32, key K) (value V, ok bool) {
 }
 
 // Peek looks up a key's value from the cache, without changing its recent-ness.
+// If the found entry is already expired, the evict function is called.
 func (lru *LRU[K, V]) Peek(key K) (value V, ok bool) {
 	return lru.peek(lru.hash(key), key)
 }
@@ -449,6 +457,7 @@ func (lru *LRU[K, V]) peek(hash uint32, key K) (value V, ok bool) {
 }
 
 // Contains checks for the existence of a key, without changing its recent-ness.
+// If the found entry is already expired, the evict function is called.
 func (lru *LRU[K, V]) Contains(key K) (ok bool) {
 	_, ok = lru.peek(lru.hash(key), key)
 	return
@@ -461,29 +470,32 @@ func (lru *LRU[K, V]) contains(hash uint32, key K) (ok bool) {
 
 // Remove removes the key from the cache.
 // The return value indicates whether the key existed or not.
-// The evict function is being called if the key existed.
+// The evict function is called for the removed entry.
 func (lru *LRU[K, V]) Remove(key K) (removed bool) {
 	return lru.remove(lru.hash(key), key)
 }
 
 func (lru *LRU[K, V]) remove(hash uint32, key K) (removed bool) {
 	if pos, ok := lru.findKey(hash, key); ok {
-		// Key exists, update element to be the head element.
-		lru.evict(pos)
-		lru.move(pos, lru.len)
-		lru.metrics.Removals++
-
-		// remove stale data to avoid memory leaks
-		lru.clearKeyAndValue(lru.len)
+		lru.removeAt(pos)
 		return ok
 	}
 
 	return
 }
 
+func (lru *LRU[K, V]) removeAt(pos uint32) {
+	lru.evict(pos)
+	lru.move(pos, lru.len)
+	lru.metrics.Removals++
+
+	// remove stale data to avoid memory leaks
+	lru.clearKeyAndValue(lru.len)
+}
+
 // RemoveOldest removes the oldest entry from the cache.
 // Key, value and an indicator of whether the entry has been removed is returned.
-// The evict function is being called if the key existed.
+// The evict function is called for the removed entry.
 func (lru *LRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 	if lru.len == 0 {
 		return lru.emptyKey, lru.emptyValue, false
@@ -491,14 +503,16 @@ func (lru *LRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 	pos := lru.elements[lru.head].next
 	key = lru.elements[pos].key
 	value = lru.elements[pos].value
-	lru.evict(pos)
-	lru.move(pos, lru.len)
-	lru.metrics.Removals++
+	lru.removeAt(pos)
 	return key, value, true
 }
 
 // Keys returns a slice of the keys in the cache, from oldest to newest.
+// Expired entries are not included.
+// The evict function is called for each expired item.
 func (lru *LRU[K, V]) Keys() []K {
+	lru.PurgeExpired()
+
 	keys := make([]K, 0, lru.len)
 	pos := lru.elements[lru.head].next
 	for i := uint32(0); i < lru.len; i++ {
@@ -509,18 +523,28 @@ func (lru *LRU[K, V]) Keys() []K {
 }
 
 // Purge purges all data (key and value) from the LRU.
+// The evict function is called for each expired item.
+// The LRU metrics are reset.
 func (lru *LRU[K, V]) Purge() {
-	for i := range lru.buckets {
-		lru.buckets[i] = emptyBucket
+	for i := uint32(0); i < lru.len; i++ {
+		_, _, _ = lru.RemoveOldest()
 	}
 
-	for i := range lru.elements {
-		lru.elements[i].key = lru.emptyKey
-		lru.elements[i].value = lru.emptyValue
-	}
-
-	lru.len = 0
 	lru.metrics = Metrics{}
+}
+
+// PurgeExpired purges all expired items from the LRU.
+// The evict function is called for each expired item.
+func (lru *LRU[K, V]) PurgeExpired() {
+	for i := uint32(0); i < lru.len; i++ {
+		pos := lru.elements[lru.head].next
+		if lru.elements[pos].expire != 0 {
+			if lru.elements[pos].expire > now() {
+				return // no more expired items
+			}
+			lru.removeAt(pos)
+		}
+	}
 }
 
 // Metrics returns the metrics of the cache.

@@ -76,8 +76,10 @@ func (lru *SyncedLRU[K, V]) Add(key K, value V) (evicted bool) {
 	return
 }
 
-// Get looks up a key's value from the cache, setting it as the most
+// Get returns the value associated with the key, setting it as the most
 // recently used item.
+// If the found cache item is already expired, the evict function is called
+// and the return value indicates that the key was not found.
 func (lru *SyncedLRU[K, V]) Get(key K) (value V, ok bool) {
 	hash := lru.lru.hash(key)
 
@@ -89,6 +91,7 @@ func (lru *SyncedLRU[K, V]) Get(key K) (value V, ok bool) {
 }
 
 // Peek looks up a key's value from the cache, without changing its recent-ness.
+// If the found entry is already expired, the evict function is called.
 func (lru *SyncedLRU[K, V]) Peek(key K) (value V, ok bool) {
 	hash := lru.lru.hash(key)
 
@@ -100,6 +103,7 @@ func (lru *SyncedLRU[K, V]) Peek(key K) (value V, ok bool) {
 }
 
 // Contains checks for the existence of a key, without changing its recent-ness.
+// If the found entry is already expired, the evict function is called.
 func (lru *SyncedLRU[K, V]) Contains(key K) (ok bool) {
 	hash := lru.lru.hash(key)
 
@@ -125,7 +129,7 @@ func (lru *SyncedLRU[K, V]) Remove(key K) (removed bool) {
 
 // RemoveOldest removes the oldest entry from the cache.
 // Key, value and an indicator of whether the entry has been removed is returned.
-// The evict function is being called if the key existed.
+// The evict function is called for the removed entry.
 func (lru *SyncedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 	lru.mu.Lock()
 	key, value, removed = lru.lru.RemoveOldest()
@@ -135,6 +139,8 @@ func (lru *SyncedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 }
 
 // Keys returns a slice of the keys in the cache, from oldest to newest.
+// Expired entries are not included.
+// The evict function is called for each expired item.
 func (lru *SyncedLRU[K, V]) Keys() (keys []K) {
 	lru.mu.RLock()
 	keys = lru.lru.Keys()
@@ -144,9 +150,19 @@ func (lru *SyncedLRU[K, V]) Keys() (keys []K) {
 }
 
 // Purge purges all data (key and value) from the LRU.
+// The evict function is called for each expired item.
+// The LRU metrics are reset.
 func (lru *SyncedLRU[K, V]) Purge() {
 	lru.mu.Lock()
 	lru.lru.Purge()
+	lru.mu.Unlock()
+}
+
+// PurgeExpired purges all expired items from the LRU.
+// The evict function is called for each expired item.
+func (lru *SyncedLRU[K, V]) PurgeExpired() {
+	lru.mu.Lock()
+	lru.lru.PurgeExpired()
 	lru.mu.Unlock()
 }
 

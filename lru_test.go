@@ -203,9 +203,20 @@ func testCacheAddWithExpire(t *testing.T, cache Cache[uint64, uint64]) {
 	time.Sleep(100 * time.Millisecond)
 	_, ok = cache.Get(3)
 	FatalIf(t, ok, "Expected expiration did not happen")
+	FatalIf(t, cache.Len() != 0, "Cache not empty")
+
+	cache.Add(1, 2)
+	cache.Purge()
+	FatalIf(t, cache.Len() != 0, "Cache not empty")
+
+	cache.AddWithLifetime(1, 2, 100*time.Millisecond)
+	cache.PurgeExpired() // should be a no-op
+	FatalIf(t, cache.Len() != 1, "Expected PurgeExpired to be a no-op")
+	time.Sleep(101 * time.Millisecond)
+	cache.PurgeExpired()
+	FatalIf(t, cache.Len() != 0, "Cache not empty")
 
 	// check for element specific lifetime
-	cache.Purge()
 	cache.SetLifetime(0)
 	cache.AddWithLifetime(1, 2, 100*time.Millisecond)
 	_, ok = cache.Get(1)
