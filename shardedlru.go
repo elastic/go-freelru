@@ -150,8 +150,10 @@ func (lru *ShardedLRU[K, V]) Add(key K, value V) (evicted bool) {
 	return
 }
 
-// Get looks up a key's value from the cache, setting it as the most
+// Get returns the value associated with the key, setting it as the most
 // recently used item.
+// If the found cache item is already expired, the evict function is called
+// and the return value indicates that the key was not found.
 func (lru *ShardedLRU[K, V]) Get(key K) (value V, ok bool) {
 	hash := lru.hash(key)
 	shard := (hash >> 16) & lru.mask
@@ -164,6 +166,7 @@ func (lru *ShardedLRU[K, V]) Get(key K) (value V, ok bool) {
 }
 
 // Peek looks up a key's value from the cache, without changing its recent-ness.
+// If the found entry is already expired, the evict function is called.
 func (lru *ShardedLRU[K, V]) Peek(key K) (value V, ok bool) {
 	hash := lru.hash(key)
 	shard := (hash >> 16) & lru.mask
@@ -176,6 +179,7 @@ func (lru *ShardedLRU[K, V]) Peek(key K) (value V, ok bool) {
 }
 
 // Contains checks for the existence of a key, without changing its recent-ness.
+// If the found entry is already expired, the evict function is called.
 func (lru *ShardedLRU[K, V]) Contains(key K) (ok bool) {
 	hash := lru.hash(key)
 	shard := (hash >> 16) & lru.mask
@@ -189,7 +193,7 @@ func (lru *ShardedLRU[K, V]) Contains(key K) (ok bool) {
 
 // Remove removes the key from the cache.
 // The return value indicates whether the key existed or not.
-// The evict function is being called if the key existed.
+// The evict function is called for the removed entry.
 func (lru *ShardedLRU[K, V]) Remove(key K) (removed bool) {
 	hash := lru.hash(key)
 	shard := (hash >> 16) & lru.mask
@@ -203,7 +207,7 @@ func (lru *ShardedLRU[K, V]) Remove(key K) (removed bool) {
 
 // RemoveOldest removes the oldest entry from the cache.
 // Key, value and an indicator of whether the entry has been removed is returned.
-// The evict function is being called if the key existed.
+// The evict function is called for the removed entry.
 func (lru *ShardedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 	hash := lru.hash(key)
 	shard := (hash >> 16) & lru.mask
@@ -216,6 +220,8 @@ func (lru *ShardedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 }
 
 // Keys returns a slice of the keys in the cache, from oldest to newest.
+// Expired entries are not included.
+// The evict function is called for each expired item.
 func (lru *ShardedLRU[K, V]) Keys() []K {
 	keys := make([]K, 0, lru.shards*lru.lrus[0].cap)
 	for shard := range lru.lrus {
@@ -228,6 +234,8 @@ func (lru *ShardedLRU[K, V]) Keys() []K {
 }
 
 // Purge purges all data (key and value) from the LRU.
+// The evict function is called for each expired item.
+// The LRU metrics are reset.
 func (lru *ShardedLRU[K, V]) Purge() {
 	for shard := range lru.lrus {
 		lru.mus[shard].Lock()
@@ -237,7 +245,7 @@ func (lru *ShardedLRU[K, V]) Purge() {
 }
 
 // PurgeExpired purges all expired items from the LRU.
-// If the eviction function has been set, it is called for each expired item.
+// The evict function is called for each expired item.
 func (lru *ShardedLRU[K, V]) PurgeExpired() {
 	for shard := range lru.lrus {
 		lru.mus[shard].Lock()

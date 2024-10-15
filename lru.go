@@ -420,8 +420,10 @@ func (lru *LRU[K, V]) add(hash uint32, key K, value V) (evicted bool) {
 	return lru.addWithLifetime(hash, key, value, lru.lifetime)
 }
 
-// Get looks up a key's value from the cache, setting it as the most
+// Get returns the value associated with the key, setting it as the most
 // recently used item.
+// If the found cache item is already expired, the evict function is called
+// and the return value indicates that the key was not found.
 func (lru *LRU[K, V]) Get(key K) (value V, ok bool) {
 	return lru.get(lru.hash(key), key)
 }
@@ -441,6 +443,7 @@ func (lru *LRU[K, V]) get(hash uint32, key K) (value V, ok bool) {
 }
 
 // Peek looks up a key's value from the cache, without changing its recent-ness.
+// If the found entry is already expired, the evict function is called.
 func (lru *LRU[K, V]) Peek(key K) (value V, ok bool) {
 	return lru.peek(lru.hash(key), key)
 }
@@ -454,6 +457,7 @@ func (lru *LRU[K, V]) peek(hash uint32, key K) (value V, ok bool) {
 }
 
 // Contains checks for the existence of a key, without changing its recent-ness.
+// If the found entry is already expired, the evict function is called.
 func (lru *LRU[K, V]) Contains(key K) (ok bool) {
 	_, ok = lru.peek(lru.hash(key), key)
 	return
@@ -504,6 +508,8 @@ func (lru *LRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 }
 
 // Keys returns a slice of the keys in the cache, from oldest to newest.
+// Expired entries are not included.
+// The evict function is called for each expired item.
 func (lru *LRU[K, V]) Keys() []K {
 	lru.PurgeExpired()
 
@@ -517,7 +523,7 @@ func (lru *LRU[K, V]) Keys() []K {
 }
 
 // Purge purges all data (key and value) from the LRU.
-// If the eviction function has been set, it is called for each item in the cache.
+// The evict function is called for each expired item.
 // The LRU metrics are reset.
 func (lru *LRU[K, V]) Purge() {
 	for i := uint32(0); i < lru.len; i++ {
@@ -528,7 +534,7 @@ func (lru *LRU[K, V]) Purge() {
 }
 
 // PurgeExpired purges all expired items from the LRU.
-// If the eviction function has been set, it is called for each expired item.
+// The evict function is called for each expired item.
 func (lru *LRU[K, V]) PurgeExpired() {
 	for i := uint32(0); i < lru.len; i++ {
 		pos := lru.elements[lru.head].next
