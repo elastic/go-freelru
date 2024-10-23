@@ -141,6 +141,18 @@ func TestSyncedLRU_Add(t *testing.T) {
 	FatalIf(t, cache.Add(3, 4) == false || evictCounter != 1, "Missing eviction")
 }
 
+func TestLRU_Purge(t *testing.T) {
+	evictCounter := uint64(0)
+	cache := makeCache(t, 3, &evictCounter)
+
+	FatalIf(t, cache.Add(1, 2) == true || evictCounter != 0, "Unexpected eviction")
+	FatalIf(t, cache.Add(3, 4) == true || evictCounter != 0, "Unexpected eviction")
+	FatalIf(t, cache.Add(3, 4) == true || evictCounter != 0, "Unexpected eviction")
+
+	cache.Purge()
+	FatalIf(t, cache.Len() != 0, "Unexpected length")
+}
+
 func TestLRU_Remove(t *testing.T) {
 	evictCounter := uint64(0)
 	cache := makeCache(t, 2, &evictCounter)
