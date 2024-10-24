@@ -526,8 +526,8 @@ func (lru *LRU[K, V]) Keys() []K {
 // The evict function is called for each expired item.
 // The LRU metrics are reset.
 func (lru *LRU[K, V]) Purge() {
-	len := lru.len
-	for i := uint32(0); i < len; i++ {
+	l := lru.len
+	for i := uint32(0); i < l; i++ {
 		_, _, _ = lru.RemoveOldest()
 	}
 
