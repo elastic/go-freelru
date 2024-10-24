@@ -225,9 +225,9 @@ func (lru *ShardedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 func (lru *ShardedLRU[K, V]) Keys() []K {
 	keys := make([]K, 0, lru.shards*lru.lrus[0].cap)
 	for shard := range lru.lrus {
-		lru.mus[shard].RLock()
+		lru.mus[shard].Lock()
 		keys = append(keys, lru.lrus[shard].Keys()...)
-		lru.mus[shard].RUnlock()
+		lru.mus[shard].Unlock()
 	}
 
 	return keys

@@ -95,9 +95,9 @@ func (lru *SyncedLRU[K, V]) Get(key K) (value V, ok bool) {
 func (lru *SyncedLRU[K, V]) Peek(key K) (value V, ok bool) {
 	hash := lru.lru.hash(key)
 
-	lru.mu.RLock()
+	lru.mu.Lock()
 	value, ok = lru.lru.peek(hash, key)
-	lru.mu.RUnlock()
+	lru.mu.Unlock()
 
 	return
 }
@@ -107,9 +107,9 @@ func (lru *SyncedLRU[K, V]) Peek(key K) (value V, ok bool) {
 func (lru *SyncedLRU[K, V]) Contains(key K) (ok bool) {
 	hash := lru.lru.hash(key)
 
-	lru.mu.RLock()
+	lru.mu.Lock()
 	ok = lru.lru.contains(hash, key)
-	lru.mu.RUnlock()
+	lru.mu.Unlock()
 
 	return
 }
@@ -142,9 +142,9 @@ func (lru *SyncedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 // Expired entries are not included.
 // The evict function is called for each expired item.
 func (lru *SyncedLRU[K, V]) Keys() (keys []K) {
-	lru.mu.RLock()
+	lru.mu.Lock()
 	keys = lru.lru.Keys()
-	lru.mu.RUnlock()
+	lru.mu.Unlock()
 
 	return
 }
