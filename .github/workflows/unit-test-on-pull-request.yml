@@ -17,13 +17,13 @@ jobs:
         go: ["stable"]
     steps:
     - name: Set up Go ${{matrix.go}}
-      uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
+      uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5
       with:
         go-version: ${{matrix.go}}
         check-latest: true
       id: go
     - name: Check out
-      uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
     - name: Linter
       run: |
           make lint
@@ -38,13 +38,13 @@ jobs:
         go: ["stable", "1.18.10"]
     steps:
     - name: Set up Go ${{matrix.go}}
-      uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
+      uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5
       with:
         go-version: ${{matrix.go}}
         check-latest: true
       id: go
     - name: Check out
-      uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
     - name: Run Test
       run: |
           make check
@@ -59,13 +59,13 @@ jobs:
         go: ["1.22"]
     steps:
       - name: Set up Go ${{matrix.go}}
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
+        uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5
         with:
           go-version: ${{matrix.go}}
           check-latest: true
         id: go
       - name: Check out
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Run Benchmarks
         run: |
           GOMAXPROCS=100 make bench
@@ -82,13 +82,13 @@ jobs:
       contents: write
     steps:
       - name: Set up Go ${{matrix.go}}
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
+        uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5
         with:
           go-version: ${{matrix.go}}
           check-latest: true
         id: go
       - name: Check out
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{ github.head_ref }}
       - name: Build
