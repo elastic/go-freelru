@@ -35,7 +35,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 TEXT ·inthash(SB),NOSPLIT,$0
 	MOVQ	i+0(FP), X0	// integer
 	MOVQ	h+8(FP), X1	// hash seed
-	PXOR	runtime·aeskeysched(SB), X0	// xor in per-process seed
+	PXOR	·aeskeysched(SB), X0	// xor in per-process seed
 	AESENC	X0, X0			// scramble seed
 	PXOR	X0, X1	// xor data with seed
 	AESENC	X1, X1	// scramble combo 3 times
@@ -73,7 +73,7 @@ TEXT aeshashbody(SB),NOSPLIT,$0-0
 	PINSRW	$4, CX, X0			// 16 bits of length
 	PSHUFHW $0, X0, X0			// repeat length 4 times total
 	MOVO	X0, X1				// save unscrambled seed
-	PXOR	runtime·aeskeysched(SB), X0	// xor in per-process seed
+	PXOR	·aeskeysched(SB), X0	// xor in per-process seed
 	AESENC	X0, X0				// scramble seed
 
 	CMPQ	CX, $16
@@ -131,7 +131,7 @@ aes16:
 
 aes17to32:
 	// make second starting seed
-	PXOR	runtime·aeskeysched+16(SB), X1
+	PXOR	·aeskeysched+16(SB), X1
 	AESENC	X1, X1
 
 	// load data to be hashed
@@ -159,9 +159,9 @@ aes33to64:
 	// make 3 more starting seeds
 	MOVO	X1, X2
 	MOVO	X1, X3
-	PXOR	runtime·aeskeysched+16(SB), X1
-	PXOR	runtime·aeskeysched+32(SB), X2
-	PXOR	runtime·aeskeysched+48(SB), X3
+	PXOR	·aeskeysched+16(SB), X1
+	PXOR	·aeskeysched+32(SB), X2
+	PXOR	·aeskeysched+48(SB), X3
 	AESENC	X1, X1
 	AESENC	X2, X2
 	AESENC	X3, X3
@@ -205,13 +205,13 @@ aes65to128:
 	MOVO	X1, X5
 	MOVO	X1, X6
 	MOVO	X1, X7
-	PXOR	runtime·aeskeysched+16(SB), X1
-	PXOR	runtime·aeskeysched+32(SB), X2
-	PXOR	runtime·aeskeysched+48(SB), X3
-	PXOR	runtime·aeskeysched+64(SB), X4
-	PXOR	runtime·aeskeysched+80(SB), X5
-	PXOR	runtime·aeskeysched+96(SB), X6
-	PXOR	runtime·aeskeysched+112(SB), X7
+	PXOR	·aeskeysched+16(SB), X1
+	PXOR	·aeskeysched+32(SB), X2
+	PXOR	·aeskeysched+48(SB), X3
+	PXOR	·aeskeysched+64(SB), X4
+	PXOR	·aeskeysched+80(SB), X5
+	PXOR	·aeskeysched+96(SB), X6
+	PXOR	·aeskeysched+112(SB), X7
 	AESENC	X1, X1
 	AESENC	X2, X2
 	AESENC	X3, X3
@@ -289,13 +289,13 @@ aes129plus:
 	MOVO	X1, X5
 	MOVO	X1, X6
 	MOVO	X1, X7
-	PXOR	runtime·aeskeysched+16(SB), X1
-	PXOR	runtime·aeskeysched+32(SB), X2
-	PXOR	runtime·aeskeysched+48(SB), X3
-	PXOR	runtime·aeskeysched+64(SB), X4
-	PXOR	runtime·aeskeysched+80(SB), X5
-	PXOR	runtime·aeskeysched+96(SB), X6
-	PXOR	runtime·aeskeysched+112(SB), X7
+	PXOR	·aeskeysched+16(SB), X1
+	PXOR	·aeskeysched+32(SB), X2
+	PXOR	·aeskeysched+48(SB), X3
+	PXOR	·aeskeysched+64(SB), X4
+	PXOR	·aeskeysched+80(SB), X5
+	PXOR	·aeskeysched+96(SB), X6
+	PXOR	·aeskeysched+112(SB), X7
 	AESENC	X1, X1
 	AESENC	X2, X2
 	AESENC	X3, X3
