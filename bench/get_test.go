@@ -25,7 +25,7 @@ import (
 
 	cloudflare "github.com/cloudflare/golibs/lrucache"
 	"github.com/coocood/freecache"
-	"github.com/dgraph-io/ristretto"
+	"github.com/dgraph-io/ristretto/v2"
 	"github.com/elastic/go-freelru"
 	hashicorp "github.com/hashicorp/golang-lru/v2"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
