@@ -27,7 +27,7 @@ import (
 
 	cloudflare "github.com/cloudflare/golibs/lrucache"
 	"github.com/coocood/freecache"
-	"github.com/dgraph-io/ristretto"
+	"github.com/dgraph-io/ristretto/v2"
 	freelru "github.com/elastic/go-freelru"
 	hashicorp "github.com/hashicorp/golang-lru/v2"
 	oracaman "github.com/orcaman/concurrent-map/v2"
