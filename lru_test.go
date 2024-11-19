@@ -249,11 +249,14 @@ func TestSyncedLRU_AddWithExpire(t *testing.T) {
 
 func testCacheAddWithRefresh(t *testing.T, cache Cache[uint64, uint64]) {
 	cache.AddWithLifetime(1, 2, 100*time.Millisecond)
+	cache.AddWithLifetime(2, 3, 100*time.Millisecond)
 	_, ok := cache.Get(1)
 	FatalIf(t, !ok, "Failed to get")
 
 	time.Sleep(101 * time.Millisecond)
 	_, ok = cache.GetAndRefresh(1, 0)
+	FatalIf(t, !ok, "Unexpected expiration")
+	_, ok = cache.GetAndRefresh(2, 0)
 	FatalIf(t, !ok, "Unexpected expiration")
 }
 
