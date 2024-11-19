@@ -247,12 +247,30 @@ func TestSyncedLRU_AddWithExpire(t *testing.T) {
 	testCacheAddWithExpire(t, makeSyncedLRU(t, 2, nil))
 }
 
+func testCacheAddWithRefresh(t *testing.T, cache Cache[uint64, uint64]) {
+	cache.AddWithLifetime(1, 2, 100*time.Millisecond)
+	_, ok := cache.Get(1)
+	FatalIf(t, !ok, "Failed to get")
+
+	time.Sleep(101 * time.Millisecond)
+	_, ok = cache.GetAndRefresh(1, 0)
+	FatalIf(t, !ok, "Unexpected expiration")
+}
+
+func TestLRU_AddWithRefresh(t *testing.T) {
+	testCacheAddWithRefresh(t, makeCache(t, 2, nil))
+}
+
+func TestSyncedLRU_AddWithRefresh(t *testing.T) {
+	testCacheAddWithRefresh(t, makeSyncedLRU(t, 2, nil))
+}
+
 func TestLRUMatch(t *testing.T) {
 	testCacheMatch(t, makeCache(t, 2, nil), 128)
 }
 
 func TestSyncedLRUMatch(t *testing.T) {
-	testCacheMatch(t, makeCache(t, 2, nil), 128)
+	testCacheMatch(t, makeSyncedLRU(t, 2, nil), 128)
 }
 
 // Test that Go map and the Cache stay in sync when adding
