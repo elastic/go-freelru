@@ -11,7 +11,7 @@ require (
 	github.com/coocood/freecache v1.2.4
 	github.com/dgraph-io/ristretto/v2 v2.0.0
 	github.com/dolthub/maphash v0.1.0
-	github.com/elastic/go-freelru v0.15.0
+	github.com/elastic/go-freelru v0.16.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/orcaman/concurrent-map/v2 v2.0.1
 	github.com/phuslu/lru v1.0.16
