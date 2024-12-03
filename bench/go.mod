@@ -14,7 +14,7 @@ require (
 	github.com/elastic/go-freelru v0.16.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/orcaman/concurrent-map/v2 v2.0.1
-	github.com/phuslu/lru v1.0.16
+	github.com/phuslu/lru v1.0.17
 	github.com/zeebo/xxh3 v1.0.2
 )
 
