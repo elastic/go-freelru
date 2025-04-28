@@ -436,8 +436,8 @@ func (lru *LRU[K, V]) addWithLifetime(hash uint32, key K, value V,
 	return evicted
 }
 
-// Add adds a key:value to the cache.
-// Returns true, true if key was updated and eviction occurred.
+// Add adds a key:value entry to the cache with the configured lifetime of the LRU.
+// Returns true if an eviction occurred.
 func (lru *LRU[K, V]) Add(key K, value V) (evicted bool) {
 	return lru.addWithLifetime(lru.hash(key), key, value, lru.lifetime)
 }
