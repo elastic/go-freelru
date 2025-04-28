@@ -137,8 +137,9 @@ func (lru *ShardedLRU[K, V]) AddWithLifetime(key K, value V,
 	return
 }
 
-// Add adds a key:value to the cache.
-// Returns true, true if key was updated and eviction occurred.
+// Add adds a key:value entry to the cache.
+// The lifetime of the entry is set to the default lifetime.
+// Returns true if an eviction occurred.
 func (lru *ShardedLRU[K, V]) Add(key K, value V) (evicted bool) {
 	hash := lru.hash(key)
 	shard := (hash >> 16) & lru.mask
