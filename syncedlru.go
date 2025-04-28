@@ -64,8 +64,7 @@ func (lru *SyncedLRU[K, V]) AddWithLifetime(key K, value V, lifetime time.Durati
 	return
 }
 
-// Add adds a key:value entry to the cache.
-// The lifetime of the entry is set to the default lifetime.
+// Add adds a key:value entry to the cache with the configured lifetime of the LRU.
 // Returns true if an eviction occurred.
 func (lru *SyncedLRU[K, V]) Add(key K, value V) (evicted bool) {
 	hash := lru.lru.hash(key)
