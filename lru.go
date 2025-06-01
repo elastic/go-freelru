@@ -18,6 +18,7 @@
 package freelru
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -79,6 +80,12 @@ type LRU[K comparable, V any] struct {
 	mask uint32 // bitmask to avoid the costly idiv in hashToPos() if size is a 2^n value
 }
 
+// kvPair represents a key-value pair for JSON serialization
+type kvPair[K any, V any] struct {
+	Key   K `json:"key"`
+	Value V `json:"value"`
+}
+
 // Metrics contains metrics about the cache.
 type Metrics struct {
 	Inserts    uint64
@@ -90,6 +97,43 @@ type Metrics struct {
 }
 
 var _ Cache[int, int] = (*LRU[int, int])(nil)
+
+// MarshalJSON implements json.Marshaler for LRU
+func (lru *LRU[K, V]) MarshalJSON() ([]byte, error) {
+	pairs := make([]kvPair[K, V], 0, lru.len)
+	for bucketPos := range lru.buckets {
+		pos := lru.buckets[bucketPos]
+		if pos == emptyBucket {
+			continue
+		}
+		startPos := pos
+		for {
+			pairs = append(pairs, kvPair[K, V]{
+				Key:   lru.elements[pos].key,
+				Value: lru.elements[pos].value,
+			})
+			pos = lru.elements[pos].nextBucket
+			if pos == startPos {
+				break
+			}
+		}
+	}
+	return json.Marshal(pairs)
+}
+
+// UnmarshalJSON implements json.Unmarshaler for LRU
+func (lru *LRU[K, V]) UnmarshalJSON(data []byte) error {
+	var pairs []kvPair[K, V]
+	if err := json.Unmarshal(data, &pairs); err != nil {
+		return fmt.Errorf("freelru: failed to unmarshal JSON: %w", err)
+	}
+
+	lru.Purge()
+	for _, p := range pairs {
+		lru.Add(p.Key, p.Value)
+	}
+	return nil
+}
 
 // SetLifetime sets the default lifetime of LRU elements.
 // Lifetime 0 means "forever".
