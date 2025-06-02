@@ -103,7 +103,7 @@ func (lru *LRU[K, V]) SetLifetime(lifetime time.Duration) {
 // - when the cache is full and a new entry is added (oldest entry is evicted)
 // - when an entry is removed by Remove() or RemoveOldest()
 // - when an entry is recognized as expired
-// - when Purge() is called
+// - when Purge() is called.
 func (lru *LRU[K, V]) SetOnEvict(onEvict OnEvictCallback[K, V]) {
 	lru.onEvict = onEvict
 }
@@ -116,7 +116,7 @@ func New[K comparable, V any](capacity uint32, hash HashKeyCallback[K]) (*LRU[K,
 
 // NewWithSize constructs an LRU with the given capacity and size.
 // The hash function calculates a hash value from the keys.
-// A size greater than the capacity increases memory consumption and decreases the CPU consumption
+// A size greater than the capacity increases memory consumption and decreases CPU consumption
 // by reducing the chance of collisions.
 // Size must not be lower than the capacity.
 func NewWithSize[K comparable, V any](capacity, size uint32, hash HashKeyCallback[K]) (
@@ -173,7 +173,7 @@ func (lru *LRU[K, V]) hashToBucketPos(hash uint32) uint32 {
 // fastModulo calculates x % n without using the modulo operator (~4x faster).
 // Reference: https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
 func fastModulo(x, n uint32) uint32 {
-	return uint32((uint64(x) * uint64(n)) >> 32) //nolint:gosec
+	return uint32((uint64(x) * uint64(n)) >> 32)
 }
 
 // hashToPos converts a key into a position in the elements array.
@@ -294,7 +294,7 @@ func expire(lifetime time.Duration) int64 {
 	return now() + lifetime.Milliseconds()
 }
 
-// clearKeyAndValue clears stale data to avoid memory leaks
+// clearKeyAndValue clears stale data to avoid memory leaks.
 func (lru *LRU[K, V]) clearKeyAndValue(pos uint32) {
 	lru.elements[pos].key = lru.emptyKey
 	lru.elements[pos].value = lru.emptyValue
@@ -609,7 +609,7 @@ func (lru *LRU[K, V]) ResetMetrics() Metrics {
 	return metrics
 }
 
-// just used for debugging
+// dump is just used for debugging.
 func (lru *LRU[K, V]) dump() {
 	fmt.Printf("head %d len %d cap %d size %d mask 0x%X\n",
 		lru.head, lru.len, lru.cap, lru.size, lru.mask)
@@ -632,6 +632,7 @@ func (lru *LRU[K, V]) dump() {
 	}
 }
 
+// PrintStats prints the statistics of the LRU cache.
 func (lru *LRU[K, V]) PrintStats() {
 	m := &lru.metrics
 	fmt.Printf("Inserts: %d Collisions: %d (%.2f%%) Evictions: %d Removals: %d Hits: %d (%.2f%%) Misses: %d\n",

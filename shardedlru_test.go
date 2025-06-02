@@ -1,4 +1,4 @@
-// nolint: dupl
+// nolint:dupl // code duplication is ok for testing purposes
 package freelru
 
 import (
@@ -74,7 +74,8 @@ func TestStressWithLifetime(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			for i := 0; i < RUNS; i++ {
-				lru.Add(fmt.Sprintf("key-%d", rand.Int()%1000), rand.Int()) //nolint:gosec
+				//nolint:gosec // weak random is okay for testing
+				lru.Add(fmt.Sprintf("key-%d", rand.Int()%1000), rand.Int())
 				time.Sleep(time.Millisecond * 1)
 			}
 			wg.Done()
@@ -85,7 +86,8 @@ func TestStressWithLifetime(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			for i := 0; i < RUNS; i++ {
-				_, _ = lru.Get(fmt.Sprintf("key-%d", rand.Int()%1000)) //nolint:gosec
+				//nolint:gosec // weak random is okay for testing
+				_, _ = lru.Get(fmt.Sprintf("key-%d", rand.Int()%1000))
 				time.Sleep(time.Millisecond * 1)
 			}
 			wg.Done()

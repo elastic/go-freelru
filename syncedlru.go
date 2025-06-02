@@ -5,6 +5,9 @@ import (
 	"time"
 )
 
+// SyncedLRU is a thread-safe, fixed size LRU cache.
+// It uses a single mutex to protect the LRU operations, which is good enough for low
+// concurrency scenarios. For high concurrency scenarios, consider using ShardedLRU instead.
 type SyncedLRU[K comparable, V any] struct {
 	mu  sync.RWMutex
 	lru *LRU[K, V]
@@ -34,6 +37,11 @@ func NewSynced[K comparable, V any](capacity uint32, hash HashKeyCallback[K]) (*
 	return NewSyncedWithSize[K, V](capacity, capacity, hash)
 }
 
+// NewSyncedWithSize constructs a synced LRU with the given capacity and size.
+// The hash function calculates a hash value from the keys.
+// A size greater than the capacity increases memory consumption and decreases CPU consumption
+// by reducing the chance of collisions.
+// Size must not be lower than the capacity.
 func NewSyncedWithSize[K comparable, V any](capacity, size uint32,
 	hash HashKeyCallback[K]) (*SyncedLRU[K, V], error) {
 	lru, err := NewWithSize[K, V](capacity, size, hash)
@@ -195,13 +203,14 @@ func (lru *SyncedLRU[K, V]) ResetMetrics() Metrics {
 	return metrics
 }
 
-// just used for debugging
+// dump is just used for debugging.
 func (lru *SyncedLRU[K, V]) dump() {
 	lru.mu.RLock()
 	lru.lru.dump()
 	lru.mu.RUnlock()
 }
 
+// PrintStats prints the statistics of the LRU cache.
 func (lru *SyncedLRU[K, V]) PrintStats() {
 	lru.mu.RLock()
 	lru.lru.PrintStats()

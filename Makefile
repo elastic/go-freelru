@@ -11,6 +11,7 @@ clean:
 bench:
 	@(cd bench; go test -bench=. -run XXX)
 
-GOLANGCI_LINT_VERSION = "v1.64.8"
+GOLANGCI_LINT_VERSION = "v2.1.6"
 lint:
-	@go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run
+	docker run --rm -t -v $$(pwd):/app -w /app \
+golangci/golangci-lint:$(GOLANGCI_LINT_VERSION) golangci-lint run

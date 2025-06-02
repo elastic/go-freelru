@@ -19,6 +19,7 @@ package freelru
 
 import "time"
 
+// Cache is an interface for a generic LRU cache.
 type Cache[K comparable, V any] interface {
 	// SetLifetime sets the default lifetime of LRU elements.
 	// Lifetime 0 means "forever".
