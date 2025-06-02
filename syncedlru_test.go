@@ -1,4 +1,4 @@
-// nolint: dupl
+// nolint:dupl // code duplication is ok for testing purposes
 package freelru
 
 import (

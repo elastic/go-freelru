@@ -57,6 +57,13 @@ func NewSharded[K comparable, V any](capacity uint32, hash HashKeyCallback[K]) (
 	return NewShardedWithSize[K, V](uint32(runtime.GOMAXPROCS(0)*16), capacity, size, hash)
 }
 
+// NewShardedWithSize constructs a sharded LRU with the given capacity, size and number of shards.
+// Sharding is used to reduce lock contention on high concurrency.
+// The hash function calculates a hash value from the keys.
+// A size greater than the capacity increases memory consumption and decreases CPU consumption
+// by reducing the chance of collisions.
+// The number of shards is set to the next power of two to avoid costly divisions for sharding.
+// Size must not be lower than the capacity.
 func NewShardedWithSize[K comparable, V any](shards, capacity, size uint32,
 	hash HashKeyCallback[K]) (
 	*ShardedLRU[K, V], error) {
@@ -308,7 +315,7 @@ func addMetrics(dst *Metrics, src Metrics) {
 	dst.Misses += src.Misses
 }
 
-// just used for debugging
+// dump is just used for debugging.
 func (lru *ShardedLRU[K, V]) dump() {
 	for shard := range lru.lrus {
 		fmt.Printf("Shard %d:\n", shard)
@@ -319,6 +326,7 @@ func (lru *ShardedLRU[K, V]) dump() {
 	}
 }
 
+// PrintStats prints the statistics of the LRU cache.
 func (lru *ShardedLRU[K, V]) PrintStats() {
 	for shard := range lru.lrus {
 		fmt.Printf("Shard %d:\n", shard)
