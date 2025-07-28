@@ -302,4 +302,4 @@ For a small number of bytes, `FNV1A` is the fastest.
 Otherwise, `XXH3` looks like a good choice.
 
 ## License
-The code is licensed under the Apache 2.0 license. See the `LICENSE` file for details.
+The code is licensed under the Apache 2.0 license. See the `LICENSE` file for more details.
