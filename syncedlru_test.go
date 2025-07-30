@@ -48,7 +48,12 @@ func TestSyncedRaceCondition(t *testing.T) {
 	wg.Wait()
 }
 
-func TestSyncedLRUMetrics(t *testing.T) {
+func TestSyncedLRU_Metrics(t *testing.T) {
 	cache, _ := NewSynced[uint64, uint64](1, hashUint64)
 	testMetrics(t, cache)
+}
+
+func TestSyncedLRU_RemoveOldest(t *testing.T) {
+	evictCounter := uint64(0)
+	testCacheRemoveOldest(t, makeSyncedLRU(t, 2, &evictCounter), &evictCounter)
 }

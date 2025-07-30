@@ -105,3 +105,8 @@ func hashString(s string) uint32 {
 	}
 	return h
 }
+
+func TestShardedLRU_RemoveOldest(t *testing.T) {
+	evictCounter := uint64(0)
+	testCacheRemoveOldest(t, makeShardedLRU(t, 2, &evictCounter), &evictCounter)
+}

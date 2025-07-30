@@ -76,6 +76,13 @@ func makeSyncedLRU(t *testing.T, capacity uint32, evictCounter *uint64) Cache[ui
 	return setupCache(t, cache, evictCounter)
 }
 
+func makeShardedLRU(t *testing.T, capacity uint32, evictCounter *uint64) Cache[uint64, uint64] {
+	cache, err := NewSharded[uint64, uint64](capacity, hashUint64)
+	FatalIf(t, err != nil, "Failed to create ShardedLRU: %v", err)
+
+	return setupCache(t, cache, evictCounter)
+}
+
 func TestLRU(t *testing.T) {
 	const CAP = 32
 
@@ -180,7 +187,10 @@ func TestSyncedLRU_Remove(t *testing.T) {
 
 func TestLRU_RemoveOldest(t *testing.T) {
 	evictCounter := uint64(0)
-	cache := makeCache(t, 2, &evictCounter)
+	testCacheRemoveOldest(t, makeCache(t, 2, &evictCounter), &evictCounter)
+}
+
+func testCacheRemoveOldest(t *testing.T, cache Cache[uint64, uint64], evictCounter *uint64) {
 	cache.Add(1, 2)
 	cache.Add(3, 4)
 
@@ -197,7 +207,7 @@ func TestLRU_RemoveOldest(t *testing.T) {
 	_, _, ok = cache.RemoveOldest()
 	FatalIf(t, ok, "Unexpectedly removing oldest entry was ok")
 
-	FatalIf(t, evictCounter != 2, "Unexpected # of evictions: %d (!= %d)", evictCounter, 2)
+	FatalIf(t, *evictCounter != 2, "Unexpected # of evictions: %d (!= %d)", evictCounter, 2)
 	FatalIf(t, cache.Len() != 0, "Unexpected # of entries: %d (!= %d)", cache.Len(), 0)
 }
 

@@ -228,17 +228,22 @@ func (lru *ShardedLRU[K, V]) Remove(key K) (removed bool) {
 }
 
 // RemoveOldest removes the oldest entry from the cache.
-// Key, value and an indicator of whether the entry has been removed is returned.
+// Last removed key, value and an indicator of whether the entries have been removed is returned.
+// Due to the nature of the approximate LRU algorithm, RemoveOldest removes data from each shard.
 // The evict function is called for the removed entry.
 func (lru *ShardedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
-	hash := lru.hash(key)
-	shard := (hash >> 16) & lru.mask
+	for shard := range lru.lrus {
+		lru.mus[shard].Lock()
+		k, v, shardRemoved := lru.lrus[shard].RemoveOldest()
+		if shardRemoved {
+			key = k
+			value = v
+			removed = true
+		}
+		lru.mus[shard].Unlock()
+	}
 
-	lru.mus[shard].Lock()
-	key, value, removed = lru.lrus[shard].RemoveOldest()
-	lru.mus[shard].Unlock()
-
-	return
+	return key, value, removed
 }
 
 // Keys returns a slice of the keys in the cache, from oldest to newest.
