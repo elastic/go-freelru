@@ -246,6 +246,22 @@ func (lru *ShardedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 	return key, value, removed
 }
 
+// GetOldest returns the oldest entry from the cache, without changing its recent-ness.
+// Key, value and an indicator of whether the entry was found is returned.
+// If the found entry is already expired, the evict function is called.
+func (lru *ShardedLRU[K, V]) GetOldest() (key K, value V, ok bool) {
+	for shard := range lru.lrus {
+		lru.mus[shard].Lock()
+		key, value, ok = lru.lrus[shard].GetOldest()
+		if ok {
+			lru.mus[shard].Unlock()
+			return key, value, true
+		}
+		lru.mus[shard].Unlock()
+	}
+	return key, value, false
+}
+
 // Keys returns a slice of the keys in the cache, from oldest to newest.
 // Expired entries are not included.
 // The evict function is called for each expired item.
@@ -258,6 +274,20 @@ func (lru *ShardedLRU[K, V]) Keys() []K {
 	}
 
 	return keys
+}
+
+// Values returns a slice of the values in the cache, from oldest to newest.
+// Expired entries are not included.
+// The evict function is called for each expired item.
+func (lru *ShardedLRU[K, V]) Values() []V {
+	values := make([]V, 0, lru.shards*lru.lrus[0].cap)
+	for shard := range lru.lrus {
+		lru.mus[shard].Lock()
+		values = append(values, lru.lrus[shard].Values()...)
+		lru.mus[shard].Unlock()
+	}
+
+	return values
 }
 
 // Purge purges all data (key and value) from the LRU.

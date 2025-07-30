@@ -159,12 +159,34 @@ func (lru *SyncedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 	return
 }
 
+// GetOldest returns the oldest entry from the cache, without changing its recent-ness.
+// Key, value and an indicator of whether the entry was found is returned.
+// If the found entry is already expired, the evict function is called.
+func (lru *SyncedLRU[K, V]) GetOldest() (key K, value V, ok bool) {
+	lru.mu.Lock()
+	key, value, ok = lru.lru.GetOldest()
+	lru.mu.Unlock()
+
+	return
+}
+
 // Keys returns a slice of the keys in the cache, from oldest to newest.
 // Expired entries are not included.
 // The evict function is called for each expired item.
 func (lru *SyncedLRU[K, V]) Keys() (keys []K) {
 	lru.mu.Lock()
 	keys = lru.lru.Keys()
+	lru.mu.Unlock()
+
+	return
+}
+
+// Values returns a slice of the values in the cache, from oldest to newest.
+// Expired entries are not included.
+// The evict function is called for each expired item.
+func (lru *SyncedLRU[K, V]) Values() (values []V) {
+	lru.mu.Lock()
+	values = lru.lru.Values()
 	lru.mu.Unlock()
 
 	return

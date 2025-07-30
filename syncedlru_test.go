@@ -57,3 +57,11 @@ func TestSyncedLRU_RemoveOldest(t *testing.T) {
 	evictCounter := uint64(0)
 	testCacheRemoveOldest(t, makeSyncedLRU(t, 2, &evictCounter), &evictCounter)
 }
+
+func TestSyncedLRU_Values(t *testing.T) {
+	testCacheValues(t, makeSyncedLRU(t, 1000, nil))
+}
+
+func TestSyncedLRU_GetOldest(t *testing.T) {
+	testCacheGetOldest(t, makeSyncedLRU(t, 1000, nil))
+}

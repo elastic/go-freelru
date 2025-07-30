@@ -69,10 +69,20 @@ type Cache[K comparable, V any] interface {
 	// The evict function is called for the removed entry.
 	RemoveOldest() (key K, value V, removed bool)
 
+	// GetOldest returns the oldest entry from the cache, without changing its recent-ness.
+	// Key, value and an indicator of whether the entry was found is returned.
+	// If the found entry is already expired, the evict function is called.
+	GetOldest() (key K, value V, ok bool)
+
 	// Keys returns a slice of the keys in the cache, from oldest to newest.
 	// Expired entries are not included.
 	// The evict function is called for each expired item.
 	Keys() []K
+
+	// Values returns a slice of the values in the cache, from oldest to newest.
+	// Expired entries are not included.
+	// The evict function is called for each expired item.
+	Values() []V
 
 	// Purge purges all data (key and value) from the LRU.
 	// The evict function is called for each expired item.

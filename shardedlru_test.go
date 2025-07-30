@@ -110,3 +110,11 @@ func TestShardedLRU_RemoveOldest(t *testing.T) {
 	evictCounter := uint64(0)
 	testCacheRemoveOldest(t, makeShardedLRU(t, 2, &evictCounter), &evictCounter)
 }
+
+func TestShardedLRU_Values(t *testing.T) {
+	testCacheValues(t, makeShardedLRU(t, 100000, nil))
+}
+
+func TestShardedLRU_GetOldest(t *testing.T) {
+	testCacheGetOldest(t, makeShardedLRU(t, 1000, nil))
+}
