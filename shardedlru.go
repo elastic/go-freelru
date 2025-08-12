@@ -228,17 +228,38 @@ func (lru *ShardedLRU[K, V]) Remove(key K) (removed bool) {
 }
 
 // RemoveOldest removes the oldest entry from the cache.
-// Key, value and an indicator of whether the entry has been removed is returned.
+// Last removed key, value and an indicator of whether the entries have been removed is returned.
+// Due to the nature of the approximate LRU algorithm, RemoveOldest removes data from each shard.
 // The evict function is called for the removed entry.
 func (lru *ShardedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
-	hash := lru.hash(key)
-	shard := (hash >> 16) & lru.mask
+	for shard := range lru.lrus {
+		lru.mus[shard].Lock()
+		k, v, shardRemoved := lru.lrus[shard].RemoveOldest()
+		if shardRemoved {
+			key = k
+			value = v
+			removed = true
+		}
+		lru.mus[shard].Unlock()
+	}
 
-	lru.mus[shard].Lock()
-	key, value, removed = lru.lrus[shard].RemoveOldest()
-	lru.mus[shard].Unlock()
+	return key, value, removed
+}
 
-	return
+// GetOldest returns the oldest entry from the cache, without changing its recent-ness.
+// Key, value and an indicator of whether the entry was found is returned.
+// If the found entry is already expired, the evict function is called.
+func (lru *ShardedLRU[K, V]) GetOldest() (key K, value V, ok bool) {
+	for shard := range lru.lrus {
+		lru.mus[shard].Lock()
+		key, value, ok = lru.lrus[shard].GetOldest()
+		if ok {
+			lru.mus[shard].Unlock()
+			return key, value, true
+		}
+		lru.mus[shard].Unlock()
+	}
+	return key, value, false
 }
 
 // Keys returns a slice of the keys in the cache, from oldest to newest.
@@ -253,6 +274,20 @@ func (lru *ShardedLRU[K, V]) Keys() []K {
 	}
 
 	return keys
+}
+
+// Values returns a slice of the values in the cache, from oldest to newest.
+// Expired entries are not included.
+// The evict function is called for each expired item.
+func (lru *ShardedLRU[K, V]) Values() []V {
+	values := make([]V, 0, lru.shards*lru.lrus[0].cap)
+	for shard := range lru.lrus {
+		lru.mus[shard].Lock()
+		values = append(values, lru.lrus[shard].Values()...)
+		lru.mus[shard].Unlock()
+	}
+
+	return values
 }
 
 // Purge purges all data (key and value) from the LRU.
