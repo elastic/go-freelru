@@ -19,7 +19,9 @@ package freelru
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 )
@@ -390,4 +392,99 @@ func testMetrics(t *testing.T, cache Cache[uint64, uint64]) {
 	FatalIf(t, m.Evictions != 1, "Unexpected evictions: %d (!= %d)", m.Evictions, 1)
 	FatalIf(t, m.Removals != 1, "Unexpected evictions: %d (!= %d)", m.Removals, 1)
 	FatalIf(t, m.Collisions != 0, "Unexpected collisions: %d (!= %d)", m.Collisions, 0)
+}
+
+func TestFreeLRUMarshalUnmarshalJSON(t *testing.T) {
+	cache, err := New[string, int](8, func(s string) uint32 {
+		var h uint32
+		for _, c := range s {
+			h = h*31 + uint32(c)
+		}
+		return h
+	})
+	if err != nil {
+		t.Fatalf("Failed to create cache: %v", err)
+	}
+
+	cache.Add("one", 1)
+	cache.Add("two", 2)
+	cache.Add("three", 3)
+
+	data, err := json.Marshal(cache)
+	if err != nil {
+		t.Fatalf("MarshalJSON failed: %v", err)
+	}
+
+	var pairs []kvPair[string, int]
+	if err := json.Unmarshal(data, &pairs); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+	expected := map[string]int{"one": 1, "two": 2, "three": 3}
+	if len(pairs) != len(expected) {
+		t.Errorf("Expected %d pairs, got %d", len(expected), len(pairs))
+	}
+	for _, p := range pairs {
+		if v, ok := expected[p.Key]; !ok || v != p.Value {
+			t.Errorf("Unexpected pair: key=%v, value=%v", p.Key, p.Value)
+		}
+	}
+
+	newCache, err := New[string, int](8, func(s string) uint32 {
+		var h uint32
+		for _, c := range s {
+			h = h*31 + uint32(c)
+		}
+		return h
+	})
+	if err != nil {
+		t.Fatalf("Failed to create new cache: %v", err)
+	}
+	if err := json.Unmarshal(data, newCache); err != nil {
+		t.Fatalf("UnmarshalJSON failed: %v", err)
+	}
+
+	for k, v := range expected {
+		if val, ok := newCache.Get(k); !ok || val != v {
+			t.Errorf("Expected key=%v, value=%v; got ok=%v, value=%v", k, v, ok, val)
+		}
+	}
+}
+
+func TestFreeLRUEmptyCacheJSON(t *testing.T) {
+	cache, err := New[int, string](8, func(k int) uint32 { return uint32(k) })
+	if err != nil {
+		t.Fatalf("Failed to create cache: %v", err)
+	}
+
+	data, err := json.Marshal(cache)
+	if err != nil {
+		t.Fatalf("MarshalJSON failed: %v", err)
+	}
+	if string(data) != "[]" {
+		t.Errorf("Expected '[]', got %s", string(data))
+	}
+
+	newCache, err := New[int, string](8, func(k int) uint32 { return uint32(k) })
+	if err != nil {
+		t.Fatalf("Failed to create new cache: %v", err)
+	}
+	if err := json.Unmarshal(data, newCache); err != nil {
+		t.Fatalf("UnmarshalJSON failed: %v", err)
+	}
+	if newCache.Len() != 0 {
+		t.Errorf("Expected empty cache, got %d items", newCache.Len())
+	}
+}
+
+func TestFreeLRUInvalidJSON(t *testing.T) {
+	cache, err := New[string, int](8, func(s string) uint32 { return 0 })
+	if err != nil {
+		t.Fatalf("Failed to create cache: %v", err)
+	}
+
+	invalidJSON := []byte(`[{"key": "test", "value": "not an int"}]`)
+	err = json.Unmarshal(invalidJSON, cache)
+	if err == nil || !strings.Contains(err.Error(), "cannot unmarshal") {
+		t.Errorf("Expected unmarshal error, got: %v", err)
+	}
 }
