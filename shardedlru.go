@@ -228,38 +228,59 @@ func (lru *ShardedLRU[K, V]) Remove(key K) (removed bool) {
 }
 
 // RemoveOldest removes the oldest entry from the cache.
-// Last removed key, value and an indicator of whether the entries have been removed is returned.
-// Due to the nature of the approximate LRU algorithm, RemoveOldest removes data from each shard.
+// Due to the nature of the approximate LRU algorithm, it removes the oldest entry
+// from a pseudo-randomly chosen non-empty shard, which is not guaranteed to be
+// the globally oldest entry.
 // The evict function is called for the removed entry.
 func (lru *ShardedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
-	for shard := range lru.lrus {
-		lru.mus[shard].Lock()
-		k, v, shardRemoved := lru.lrus[shard].RemoveOldest()
-		if shardRemoved {
-			key = k
-			value = v
-			removed = true
-		}
-		lru.mus[shard].Unlock()
+	shards := int(lru.shards)
+	if shards == 0 {
+		return key, value, false
 	}
 
-	return key, value, removed
+	start := lru.randomShard()
+	for i := 0; i < shards; i++ {
+		shard := (start + i) % shards
+		lru.mus[shard].Lock()
+		k, v, shardRemoved := lru.lrus[shard].RemoveOldest()
+		lru.mus[shard].Unlock()
+		if shardRemoved {
+			return k, v, true
+		}
+	}
+
+	return key, value, false
 }
 
 // GetOldest returns the oldest entry from the cache, without changing its recent-ness.
+// Due to the nature of the approximate LRU algorithm, it returns the oldest entry
+// from a pseudo-randomly chosen non-empty shard, which is not guaranteed to be
+// the globally oldest entry in the cache.
 // Key, value and an indicator of whether the entry was found is returned.
 // If the found entry is already expired, the evict function is called.
 func (lru *ShardedLRU[K, V]) GetOldest() (key K, value V, ok bool) {
-	for shard := range lru.lrus {
+	shards := int(lru.shards)
+	if shards == 0 {
+		return key, value, false
+	}
+
+	start := lru.randomShard()
+	for i := 0; i < shards; i++ {
+		shard := (start + i) % shards
 		lru.mus[shard].Lock()
 		key, value, ok = lru.lrus[shard].GetOldest()
+		lru.mus[shard].Unlock()
 		if ok {
-			lru.mus[shard].Unlock()
 			return key, value, true
 		}
-		lru.mus[shard].Unlock()
 	}
+
 	return key, value, false
+}
+
+// randomShard returns a pseudo-random shard index.
+func (lru *ShardedLRU[K, V]) randomShard() int {
+	return int(uint32(time.Now().UnixNano()) & lru.mask)
 }
 
 // Keys returns a slice of the keys in the cache, from oldest to newest.
