@@ -234,11 +234,8 @@ func (lru *ShardedLRU[K, V]) Remove(key K) (removed bool) {
 // The evict function is called for the removed entry.
 func (lru *ShardedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 	shards := int(lru.shards)
-	if shards == 0 {
-		return key, value, false
-	}
-
 	start := lru.randomShard()
+
 	for i := 0; i < shards; i++ {
 		shard := (start + i) % shards
 		lru.mus[shard].Lock()
@@ -260,11 +257,8 @@ func (lru *ShardedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 // If the found entry is already expired, the evict function is called.
 func (lru *ShardedLRU[K, V]) GetOldest() (key K, value V, ok bool) {
 	shards := int(lru.shards)
-	if shards == 0 {
-		return key, value, false
-	}
-
 	start := lru.randomShard()
+
 	for i := 0; i < shards; i++ {
 		shard := (start + i) % shards
 		lru.mus[shard].Lock()
