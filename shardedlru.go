@@ -228,20 +228,56 @@ func (lru *ShardedLRU[K, V]) Remove(key K) (removed bool) {
 }
 
 // RemoveOldest removes the oldest entry from the cache.
-// Key, value and an indicator of whether the entry has been removed is returned.
+// Due to the nature of the approximate LRU algorithm, it removes the oldest entry
+// from a pseudo-randomly chosen non-empty shard, which is not guaranteed to be
+// the globally oldest entry.
 // The evict function is called for the removed entry.
 func (lru *ShardedLRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
-	hash := lru.hash(key)
-	shard := (hash >> 16) & lru.mask
+	shards := int(lru.shards)
+	start := lru.randomShard()
 
-	lru.mus[shard].Lock()
-	key, value, removed = lru.lrus[shard].RemoveOldest()
-	lru.mus[shard].Unlock()
+	for i := 0; i < shards; i++ {
+		shard := (start + i) % shards
+		lru.mus[shard].Lock()
+		k, v, shardRemoved := lru.lrus[shard].RemoveOldest()
+		lru.mus[shard].Unlock()
+		if shardRemoved {
+			return k, v, true
+		}
+	}
 
-	return
+	return key, value, false
 }
 
-// Keys returns a slice of the keys in the cache, from oldest to newest.
+// GetOldest returns the oldest entry from the cache, without changing its recent-ness.
+// Due to the nature of the approximate LRU algorithm, it returns the oldest entry
+// from a pseudo-randomly chosen non-empty shard, which is not guaranteed to be
+// the globally oldest entry in the cache.
+// Key, value and an indicator of whether the entry was found is returned.
+// If the found entry is already expired, the evict function is called.
+func (lru *ShardedLRU[K, V]) GetOldest() (key K, value V, ok bool) {
+	shards := int(lru.shards)
+	start := lru.randomShard()
+
+	for i := 0; i < shards; i++ {
+		shard := (start + i) % shards
+		lru.mus[shard].Lock()
+		key, value, ok = lru.lrus[shard].GetOldest()
+		lru.mus[shard].Unlock()
+		if ok {
+			return key, value, true
+		}
+	}
+
+	return key, value, false
+}
+
+// randomShard returns a pseudo-random shard index.
+func (lru *ShardedLRU[K, V]) randomShard() int {
+	return int(uint32(time.Now().UnixNano()) & lru.mask)
+}
+
+// Keys returns a slice of the keys in the cache, in no specific order.
 // Expired entries are not included.
 // The evict function is called for each expired item.
 func (lru *ShardedLRU[K, V]) Keys() []K {
@@ -253,6 +289,20 @@ func (lru *ShardedLRU[K, V]) Keys() []K {
 	}
 
 	return keys
+}
+
+// Values returns a slice of the values in the cache, in no specific order.
+// Expired entries are not included.
+// The evict function is called for each expired item.
+func (lru *ShardedLRU[K, V]) Values() []V {
+	values := make([]V, 0, lru.shards*lru.lrus[0].cap)
+	for shard := range lru.lrus {
+		lru.mus[shard].Lock()
+		values = append(values, lru.lrus[shard].Values()...)
+		lru.mus[shard].Unlock()
+	}
+
+	return values
 }
 
 // Purge purges all data (key and value) from the LRU.

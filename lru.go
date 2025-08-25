@@ -555,6 +555,18 @@ func (lru *LRU[K, V]) RemoveOldest() (key K, value V, removed bool) {
 	return key, value, true
 }
 
+// GetOldest returns the oldest entry from the cache, without changing its recent-ness.
+// Key, value and an indicator of whether the entry was found is returned.
+// If the found entry is already expired, the evict function is called.
+func (lru *LRU[K, V]) GetOldest() (key K, value V, ok bool) {
+	if lru.len == 0 {
+		return lru.emptyKey, lru.emptyValue, false
+	}
+	key = lru.elements[lru.elements[lru.head].next].key
+	value, ok = lru.peek(lru.hash(key), key)
+	return key, value, ok
+}
+
 // Keys returns a slice of the keys in the cache, from oldest to newest.
 // Expired entries are not included.
 // The evict function is called for each expired item.
@@ -568,6 +580,21 @@ func (lru *LRU[K, V]) Keys() []K {
 		pos = lru.elements[pos].next
 	}
 	return keys
+}
+
+// Values returns a slice of the values in the cache, from oldest to newest.
+// Expired entries are not included.
+// The evict function is called for each expired item.
+func (lru *LRU[K, V]) Values() []V {
+	lru.PurgeExpired()
+
+	values := make([]V, 0, lru.len)
+	pos := lru.elements[lru.head].next
+	for i := uint32(0); i < lru.len; i++ {
+		values = append(values, lru.elements[pos].value)
+		pos = lru.elements[pos].next
+	}
+	return values
 }
 
 // Purge purges all data (key and value) from the LRU.

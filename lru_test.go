@@ -20,6 +20,8 @@ package freelru
 import (
 	"encoding/binary"
 	"math/rand"
+	"reflect"
+	"sort"
 	"testing"
 	"time"
 )
@@ -72,6 +74,13 @@ func makeCache(t *testing.T, capacity uint32, evictCounter *uint64) Cache[uint64
 func makeSyncedLRU(t *testing.T, capacity uint32, evictCounter *uint64) Cache[uint64, uint64] {
 	cache, err := NewSynced[uint64, uint64](capacity, hashUint64)
 	FatalIf(t, err != nil, "Failed to create SyncedLRU: %v", err)
+
+	return setupCache(t, cache, evictCounter)
+}
+
+func makeShardedLRU(t *testing.T, capacity uint32, evictCounter *uint64) Cache[uint64, uint64] {
+	cache, err := NewSharded[uint64, uint64](capacity, hashUint64)
+	FatalIf(t, err != nil, "Failed to create ShardedLRU: %v", err)
 
 	return setupCache(t, cache, evictCounter)
 }
@@ -180,7 +189,10 @@ func TestSyncedLRU_Remove(t *testing.T) {
 
 func TestLRU_RemoveOldest(t *testing.T) {
 	evictCounter := uint64(0)
-	cache := makeCache(t, 2, &evictCounter)
+	testCacheRemoveOldest(t, makeCache(t, 2, &evictCounter), &evictCounter)
+}
+
+func testCacheRemoveOldest(t *testing.T, cache Cache[uint64, uint64], evictCounter *uint64) {
 	cache.Add(1, 2)
 	cache.Add(3, 4)
 
@@ -197,7 +209,7 @@ func TestLRU_RemoveOldest(t *testing.T) {
 	_, _, ok = cache.RemoveOldest()
 	FatalIf(t, ok, "Unexpectedly removing oldest entry was ok")
 
-	FatalIf(t, evictCounter != 2, "Unexpected # of evictions: %d (!= %d)", evictCounter, 2)
+	FatalIf(t, *evictCounter != 2, "Unexpected # of evictions: %d (!= %d)", evictCounter, 2)
 	FatalIf(t, cache.Len() != 0, "Unexpected # of entries: %d (!= %d)", cache.Len(), 0)
 }
 
@@ -390,4 +402,35 @@ func testMetrics(t *testing.T, cache Cache[uint64, uint64]) {
 	FatalIf(t, m.Evictions != 1, "Unexpected evictions: %d (!= %d)", m.Evictions, 1)
 	FatalIf(t, m.Removals != 1, "Unexpected evictions: %d (!= %d)", m.Removals, 1)
 	FatalIf(t, m.Collisions != 0, "Unexpected collisions: %d (!= %d)", m.Collisions, 0)
+}
+
+func TestLRU_Values(t *testing.T) {
+	testCacheValues(t, makeCache(t, 1000, nil))
+}
+
+func testCacheValues(t *testing.T, cache Cache[uint64, uint64]) {
+	needValues := make([]uint64, 0, count)
+	for i := uint64(0); i < count; i++ {
+		val := i + 1
+		cache.Add(i, val)
+		needValues = append(needValues, val)
+	}
+	values := cache.Values()
+	sort.Slice(needValues, func(i, j int) bool { return needValues[i] < needValues[j] })
+	sort.Slice(values, func(i, j int) bool { return values[i] < values[j] })
+	FatalIf(t, !reflect.DeepEqual(needValues, values), "Unexpected values: %v (!= %v)", needValues, values)
+}
+
+func TestLRU_GetOldest(t *testing.T) {
+	testCacheGetOldest(t, makeCache(t, 1000, nil))
+}
+
+func testCacheGetOldest(t *testing.T, cache Cache[uint64, uint64]) {
+	cache.Add(1, 2)
+	cache.Add(3, 4)
+	cache.Add(5, 6)
+	k, v, ok := cache.GetOldest()
+	FatalIf(t, !ok, "Failed to find Oldest in Cache")
+	FatalIf(t, k != 1, "Unexpected key: %d", k)
+	FatalIf(t, v != 2, "Unexpected value: %d", v)
 }
