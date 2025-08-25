@@ -277,7 +277,7 @@ func (lru *ShardedLRU[K, V]) randomShard() int {
 	return int(uint32(time.Now().UnixNano()) & lru.mask)
 }
 
-// Keys returns a slice of the keys in the cache, from oldest to newest.
+// Keys returns a slice of the keys in the cache, in no specific order.
 // Expired entries are not included.
 // The evict function is called for each expired item.
 func (lru *ShardedLRU[K, V]) Keys() []K {
@@ -291,7 +291,7 @@ func (lru *ShardedLRU[K, V]) Keys() []K {
 	return keys
 }
 
-// Values returns a slice of the values in the cache, from oldest to newest.
+// Values returns a slice of the values in the cache, in no specific order.
 // Expired entries are not included.
 // The evict function is called for each expired item.
 func (lru *ShardedLRU[K, V]) Values() []V {

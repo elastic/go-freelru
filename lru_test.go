@@ -21,7 +21,7 @@ import (
 	"encoding/binary"
 	"math/rand"
 	"reflect"
-	"slices"
+	"sort"
 	"testing"
 	"time"
 )
@@ -416,8 +416,8 @@ func testCacheValues(t *testing.T, cache Cache[uint64, uint64]) {
 		needValues = append(needValues, val)
 	}
 	values := cache.Values()
-	slices.Sort(needValues)
-	slices.Sort(values)
+	sort.Slice(needValues, func(i, j int) bool { return needValues[i] < needValues[j] })
+	sort.Slice(values, func(i, j int) bool { return values[i] < values[j] })
 	FatalIf(t, !reflect.DeepEqual(needValues, values), "Unexpected values: %v (!= %v)", needValues, values)
 }
 
