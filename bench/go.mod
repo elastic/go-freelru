@@ -2,7 +2,7 @@ module github.com/elastic/go-freelru/bench
 
 go 1.23.0
 
-toolchain go1.25.1
+toolchain go1.25.2
 
 require (
 	github.com/allegro/bigcache/v3 v3.1.0
