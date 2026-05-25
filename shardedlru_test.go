@@ -45,6 +45,7 @@ func TestShardedRaceCondition(t *testing.T) {
 	call(func() { lru.PurgeExpired() })
 	call(func() { lru.Metrics() })
 	call(func() { _ = lru.ResetMetrics() })
+	call(func() { _, _ = lru.Resize(CAP) })
 	call(func() { lru.dump() })
 	call(func() { lru.PrintStats() })
 
@@ -54,6 +55,40 @@ func TestShardedRaceCondition(t *testing.T) {
 func TestShardedLRUMetrics(t *testing.T) {
 	cache, _ := NewSharded[uint64, uint64](1, hashUint64)
 	testMetrics(t, cache)
+}
+
+func TestShardedLRUResize(t *testing.T) {
+	cache, err := NewShardedWithSize[uint64, uint64](2, 4, 32, func(v uint64) uint32 {
+		return uint32(v)<<16 | uint32(v)
+	})
+	FatalIf(t, err != nil, "Failed to create ShardedLRU: %v", err)
+
+	evictCounter := uint64(0)
+	cache.SetOnEvict(func(uint64, uint64) {
+		evictCounter++
+	})
+
+	for i := uint64(0); i < 8; i++ {
+		cache.Add(i, i)
+	}
+	cache.ResetMetrics()
+	evictCounter = 0
+
+	evicted, err := cache.Resize(2)
+	FatalIf(t, err != nil, "Failed to resize ShardedLRU: %v", err)
+	FatalIf(t, evicted == 0, "Expected resize to evict entries")
+	FatalIf(t, evictCounter != uint64(evicted), "Unexpected number of callbacks: %d", evictCounter)
+	FatalIf(t, cache.Len() > 2, "Unexpected number of entries: %d", cache.Len())
+	FatalIf(t, cache.Metrics().Evictions != uint64(evicted), "Unexpected eviction metrics: %d",
+		cache.Metrics().Evictions)
+}
+
+func TestShardedLRUResizeRejectsCapacityBelowShardCount(t *testing.T) {
+	cache, err := NewShardedWithSize[uint64, uint64](2, 4, 32, hashUint64)
+	FatalIf(t, err != nil, "Failed to create ShardedLRU: %v", err)
+
+	_, err = cache.Resize(1)
+	FatalIf(t, err == nil, "Expected resize to reject capacity smaller than shard count")
 }
 
 func TestStressWithLifetime(t *testing.T) {
