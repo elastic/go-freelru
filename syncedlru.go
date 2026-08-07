@@ -225,6 +225,15 @@ func (lru *SyncedLRU[K, V]) ResetMetrics() Metrics {
 	return metrics
 }
 
+// Resize changes the cache capacity in place.
+// If the new capacity is smaller than the current length, oldest entries are evicted.
+func (lru *SyncedLRU[K, V]) Resize(capacity uint32) (evicted uint32, err error) {
+	lru.mu.Lock()
+	evicted, err = lru.lru.Resize(capacity)
+	lru.mu.Unlock()
+	return
+}
+
 // dump is just used for debugging.
 func (lru *SyncedLRU[K, V]) dump() {
 	lru.mu.RLock()
