@@ -541,6 +541,15 @@ func (lru *LRU[K, V]) removeAt(pos uint32) {
 	lru.clearKeyAndValue(lru.len)
 }
 
+func (lru *LRU[K, V]) evictAt(pos uint32) {
+	lru.evict(pos)
+	lru.move(pos, lru.len)
+	lru.metrics.Evictions++
+
+	// remove stale data to avoid memory leaks
+	lru.clearKeyAndValue(lru.len)
+}
+
 // RemoveOldest removes the oldest entry from the cache.
 // Key, value and an indicator of whether the entry has been removed is returned.
 // The evict function is called for the removed entry.
@@ -634,6 +643,25 @@ func (lru *LRU[K, V]) ResetMetrics() Metrics {
 	metrics := lru.metrics
 	lru.metrics = Metrics{}
 	return metrics
+}
+
+// Resize changes the cache capacity in place.
+// If the new capacity is smaller than the current length, oldest entries are evicted.
+func (lru *LRU[K, V]) Resize(capacity uint32) (evicted uint32, err error) {
+	if capacity == 0 {
+		return 0, errors.New("capacity must be positive")
+	}
+	if capacity > lru.size {
+		return 0, fmt.Errorf("capacity (%d) is larger than size (%d)", capacity, lru.size)
+	}
+
+	lru.cap = capacity
+	for lru.len > lru.cap {
+		pos := lru.elements[lru.head].next
+		lru.evictAt(pos)
+		evicted++
+	}
+	return evicted, nil
 }
 
 // dump is just used for debugging.

@@ -98,4 +98,8 @@ type Cache[K comparable, V any] interface {
 
 	// ResetMetrics resets the metrics of the cache and returns the previous state.
 	ResetMetrics() Metrics
+
+	// Resize changes the cache capacity in place.
+	// If the new capacity is smaller than the current length, oldest entries are evicted.
+	Resize(capacity uint32) (evicted uint32, err error)
 }

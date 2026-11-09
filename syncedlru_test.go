@@ -2,6 +2,7 @@
 package freelru
 
 import (
+	"reflect"
 	"sync"
 	"testing"
 )
@@ -42,6 +43,7 @@ func TestSyncedRaceCondition(t *testing.T) {
 	call(func() { lru.PurgeExpired() })
 	call(func() { lru.Metrics() })
 	call(func() { _ = lru.ResetMetrics() })
+	call(func() { _, _ = lru.Resize(CAP) })
 	call(func() { lru.dump() })
 	call(func() { lru.PrintStats() })
 
@@ -51,6 +53,20 @@ func TestSyncedRaceCondition(t *testing.T) {
 func TestSyncedLRU_Metrics(t *testing.T) {
 	cache, _ := NewSynced[uint64, uint64](1, hashUint64)
 	testMetrics(t, cache)
+}
+
+func TestSyncedLRU_Resize(t *testing.T) {
+	cache, err := NewSyncedWithSize[uint64, uint64](3, 4, hashUint64)
+	FatalIf(t, err != nil, "Failed to create SyncedLRU: %v", err)
+
+	cache.Add(1, 2)
+	cache.Add(2, 3)
+	cache.Add(3, 4)
+
+	evicted, err := cache.Resize(1)
+	FatalIf(t, err != nil, "Failed to resize SyncedLRU: %v", err)
+	FatalIf(t, evicted != 2, "Unexpected number of evictions: %d", evicted)
+	FatalIf(t, !reflect.DeepEqual(cache.Keys(), []uint64{3}), "Unexpected keys: %v", cache.Keys())
 }
 
 func TestSyncedLRU_RemoveOldest(t *testing.T) {

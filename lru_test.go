@@ -99,6 +99,61 @@ func TestSyncedLRU(t *testing.T) {
 	testCache(t, CAP, makeSyncedLRU(t, CAP, &evictCounter), &evictCounter)
 }
 
+func TestLRUResizeShrinksByEvictingOldest(t *testing.T) {
+	cache, err := NewWithSize[uint64, uint64](4, 8, hashUint64)
+	FatalIf(t, err != nil, "Failed to create LRU: %v", err)
+
+	evictedKeys := []uint64{}
+	cache.SetOnEvict(func(k uint64, _ uint64) {
+		evictedKeys = append(evictedKeys, k)
+	})
+
+	cache.Add(1, 2)
+	cache.Add(2, 3)
+	cache.Add(3, 4)
+	cache.Add(4, 5)
+	_, ok := cache.Get(2)
+	FatalIf(t, !ok, "Failed to get key")
+	cache.ResetMetrics()
+
+	evicted, err := cache.Resize(2)
+	FatalIf(t, err != nil, "Failed to resize LRU: %v", err)
+	FatalIf(t, evicted != 2, "Unexpected number of evictions: %d", evicted)
+	FatalIf(t, cache.Len() != 2, "Unexpected number of entries: %d", cache.Len())
+	FatalIf(t, !reflect.DeepEqual(cache.Keys(), []uint64{4, 2}), "Unexpected keys: %v", cache.Keys())
+	FatalIf(t, !reflect.DeepEqual(evictedKeys, []uint64{1, 3}), "Unexpected evictions: %v", evictedKeys)
+	FatalIf(t, cache.Metrics().Evictions != 2, "Unexpected eviction metrics: %d",
+		cache.Metrics().Evictions)
+}
+
+func TestLRUResizeCanGrowWithinSize(t *testing.T) {
+	cache, err := NewWithSize[uint64, uint64](2, 4, hashUint64)
+	FatalIf(t, err != nil, "Failed to create LRU: %v", err)
+
+	evicted, err := cache.Resize(4)
+	FatalIf(t, err != nil, "Failed to resize LRU: %v", err)
+	FatalIf(t, evicted != 0, "Unexpected number of evictions: %d", evicted)
+
+	for i := uint64(0); i < 4; i++ {
+		cache.Add(i, i+1)
+	}
+	FatalIf(t, cache.Len() != 4, "Unexpected number of entries: %d", cache.Len())
+}
+
+func TestLRUResizeRejectsInvalidCapacityWithoutMutation(t *testing.T) {
+	cache, err := NewWithSize[uint64, uint64](2, 4, hashUint64)
+	FatalIf(t, err != nil, "Failed to create LRU: %v", err)
+
+	cache.Add(1, 2)
+	cache.Add(2, 3)
+
+	_, err = cache.Resize(0)
+	FatalIf(t, err == nil, "Expected resize to reject zero capacity")
+	_, err = cache.Resize(5)
+	FatalIf(t, err == nil, "Expected resize to reject capacity larger than size")
+	FatalIf(t, !reflect.DeepEqual(cache.Keys(), []uint64{1, 2}), "Unexpected keys: %v", cache.Keys())
+}
+
 func testCache(t *testing.T, cAP uint64, cache Cache[uint64, uint64], evictCounter *uint64) {
 	for i := uint64(0); i < cAP*2; i++ {
 		cache.Add(i, i+1)

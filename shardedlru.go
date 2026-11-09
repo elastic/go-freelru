@@ -281,7 +281,7 @@ func (lru *ShardedLRU[K, V]) randomShard() int {
 // Expired entries are not included.
 // The evict function is called for each expired item.
 func (lru *ShardedLRU[K, V]) Keys() []K {
-	keys := make([]K, 0, lru.shards*lru.lrus[0].cap)
+	keys := make([]K, 0, lru.Len())
 	for shard := range lru.lrus {
 		lru.mus[shard].Lock()
 		keys = append(keys, lru.lrus[shard].Keys()...)
@@ -295,7 +295,7 @@ func (lru *ShardedLRU[K, V]) Keys() []K {
 // Expired entries are not included.
 // The evict function is called for each expired item.
 func (lru *ShardedLRU[K, V]) Values() []V {
-	values := make([]V, 0, lru.shards*lru.lrus[0].cap)
+	values := make([]V, 0, lru.Len())
 	for shard := range lru.lrus {
 		lru.mus[shard].Lock()
 		values = append(values, lru.lrus[shard].Values()...)
@@ -354,6 +354,49 @@ func (lru *ShardedLRU[K, V]) ResetMetrics() Metrics {
 	}
 
 	return metrics
+}
+
+// Resize changes the cache capacity in place.
+// The requested capacity is distributed across shards. If a shard needs to shrink,
+// it evicts its oldest entries until it fits the new per-shard capacity.
+func (lru *ShardedLRU[K, V]) Resize(capacity uint32) (evicted uint32, err error) {
+	if capacity == 0 {
+		return 0, errors.New("capacity must be positive")
+	}
+	if capacity < lru.shards {
+		return 0, fmt.Errorf("capacity (%d) is smaller than shard count (%d)", capacity, lru.shards)
+	}
+
+	for shard := range lru.lrus {
+		lru.mus[shard].Lock()
+	}
+	defer func() {
+		for shard := len(lru.lrus) - 1; shard >= 0; shard-- {
+			lru.mus[shard].Unlock()
+		}
+	}()
+
+	capacities := make([]uint32, lru.shards)
+	for shard := range lru.lrus {
+		shardCapacity := capacity / lru.shards
+		if uint32(shard) < capacity%lru.shards {
+			shardCapacity++
+		}
+		if shardCapacity > lru.lrus[shard].size {
+			return 0, fmt.Errorf("shard capacity (%d) is larger than shard size (%d)",
+				shardCapacity, lru.lrus[shard].size)
+		}
+		capacities[shard] = shardCapacity
+	}
+
+	for shard := range lru.lrus {
+		shardEvicted, resizeErr := lru.lrus[shard].Resize(capacities[shard])
+		if resizeErr != nil {
+			return evicted, resizeErr
+		}
+		evicted += shardEvicted
+	}
+	return evicted, nil
 }
 
 func addMetrics(dst *Metrics, src Metrics) {
