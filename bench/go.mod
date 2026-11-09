@@ -2,19 +2,19 @@ module github.com/elastic/go-freelru/bench
 
 go 1.24.0
 
-toolchain go1.25.6
+toolchain go1.27.3
 
 require (
 	github.com/allegro/bigcache/v3 v3.2.0
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cloudflare/golibs v0.0.0-20240916140616-558c04120a4e
-	github.com/coocood/freecache v1.2.4
+	github.com/coocood/freecache v1.2.7
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/dolthub/maphash v0.1.0
 	github.com/elastic/go-freelru v0.16.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/orcaman/concurrent-map/v2 v2.0.1
-	github.com/phuslu/lru v1.0.18
+	github.com/phuslu/lru v1.0.25
 	github.com/zeebo/xxh3 v1.0.2
 )
 
