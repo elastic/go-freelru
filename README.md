@@ -167,9 +167,9 @@ The numbers are from my laptop (Intel(R) Core(TM) i7-12800H @ 2800 MHz).
 The key and value types are part of the benchmark name, e.g. `int_int` means key and value are of type `int`.
 `int128` is a struct type made of two `uint64` fields.
 
-To run the benchmarks
+To run the benchmarks (x86-64 only)
 ```
-make benchmarks
+make bench
 ```
 
 ### Adding objects
