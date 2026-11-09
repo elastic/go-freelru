@@ -2,5 +2,20 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "local>elastic/renovate-config"
+  ],
+  "timezone": "UTC",
+  "schedule": [
+    "* 0-7 * * 1"
+  ],
+  "packageRules": [
+    {
+      "description": "Put every update (majors included) into one PR. Last so it overrides any groupName from the shared preset",
+      "matchPackageNames": [
+        "*"
+      ],
+      "groupName": "all dependencies",
+      "groupSlug": "all",
+      "separateMajorMinor": false
+    }
   ]
 }
